@@ -1,4 +1,4 @@
-algorithm: DDGCNN
+algorithm: FBtCNN
 
 # Parameters for training procedure
 train_param:
@@ -8,7 +8,7 @@ train_param:
 
 # Parameters for ssvep data
 data_param:
-  ws: 1.0                      # window size of ssvep
+  ws: 4.0                      # window size of ssvep
   Nh: 180                      # number of trial
   Nc: 8                        # number of channel
   Fs: 256                      # frequency of sample
@@ -39,10 +39,15 @@ FBtCNN:
   lr_jitter: false             # learning rate scheduler
 
 ConvCA:
-  epochs: 1000                  # number of epochs
+#  epochs: 1000                  # number of epochs
+#  bz: 30                     # batch size
+#  lr: 0.0008                       # learning rate
+#  wd: 0.0000                  # weight decay
+#  lr_jitter: false             # learning rate scheduler
+  epochs: 500                  # number of epochs
   bz: 30                     # batch size
-  lr: 0.0008                       # learning rate
-  wd: 0.0000                  # weight decay
+  lr: 0.001                       # learning rate
+  wd: 0.01                   # weight decay
   lr_jitter: false             # learning rate scheduler
 
 SSVEPNet:
