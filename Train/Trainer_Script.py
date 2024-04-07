@@ -4,7 +4,7 @@
 import numpy as np
 import torch
 from torch import nn
-from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN
+from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU
 from Utils import Constraint, LossFunction, Script
 from etc.global_config import config
 
@@ -138,6 +138,10 @@ def build_model(devices):
         net = SSVEPNet.ESNet(Nc, Nt, Nf)
         net = Constraint.Spectral_Normalization(net)
 
+    elif algorithm == "CNNBIGRU":
+        net = CNNBIGRU.ESNet(Nc, Nt, Nf)
+        net = Constraint.Spectral_Normalization(net)
+
     elif algorithm == "DDGCNN":
         bz = config[algorithm]["bz"]
         norm = config[algorithm]["norm"]
@@ -149,7 +153,7 @@ def build_model(devices):
 
     net = net.to(devices)
 
-    if algorithm == 'SSVEPNet':
+    if algorithm == 'SSVEPNet' or algorithm=='CNNBIGRU':
         stimulus_type = str(config[algorithm]["stimulus_type"])
         criterion = LossFunction.CELoss_Marginal_Smooth(Nf, stimulus_type=stimulus_type)
     else:
