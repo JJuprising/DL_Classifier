@@ -8,7 +8,7 @@ train_param:
 
 # Parameters for ssvep data
 data_param:
-  ws: 4.0                      # window size of ssvep
+  ws: 1.0                      # window size of ssvep
   Nh: 180                      # number of trial
   Nc: 8                        # number of channel
   Fs: 256                      # frequency of sample
