@@ -8,6 +8,7 @@ from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, C
 from Utils import Constraint, LossFunction, Script
 from etc.global_config import config
 
+
 def data_preprocess(EEGData_Train, EEGData_Test):
     '''
     Parameters
@@ -19,18 +20,23 @@ def data_preprocess(EEGData_Train, EEGData_Test):
     -------
     '''
     algorithm = config['algorithm']
-    ws = config["data_param"]["ws"]
-    Fs = config["data_param"]["Fs"]
-    Nf = config["data_param"]["Nf"]
+    classes = config['classes']
+    if classes==12:
+        ws = config["data_param_12"]["ws"]
+        Fs = config["data_param_12"]["Fs"]
+        Nf = config["data_param_12"]["Nf"]
+    if classes==40:
+        ws = config["data_param_40"]["ws"]
+        Fs = config["data_param_40"]["Fs"]
+        Nf = config["data_param_40"]["Nf"]
     bz = config[algorithm]["bz"]
-
 
     '''Loading Training Data'''
     EEGData_Train, EEGLabel_Train = EEGData_Train[:]
     EEGData_Train = EEGData_Train[:, :, :, :int(Fs * ws)]
 
     if algorithm == "ConvCA":
-        EEGData_Train = torch.swapaxes(EEGData_Train, axis0=2, axis1=3) # (Nh, 1, Nt, Nc)
+        EEGData_Train = torch.swapaxes(EEGData_Train, axis0=2, axis1=3)  # (Nh, 1, Nt, Nc)
         EEGTemp_Train = Script.get_Template_Signal(EEGData_Train, Nf)  # (Nf × 1 × Nt × Nc)
         EEGTemp_Train = torch.swapaxes(EEGTemp_Train, axis0=0, axis1=1)  # (1 × Nf × Nt × Nc)
         EEGTemp_Train = EEGTemp_Train.repeat((EEGData_Train.shape[0], 1, 1, 1))  # (Nh × Nf × Nt × Nc)
@@ -57,7 +63,6 @@ def data_preprocess(EEGData_Train, EEGData_Test):
         print("EEGData_Train.shape", EEGData_Train.shape)
         print("EEGLabel_Train.shape", EEGLabel_Train.shape)
         EEGData_Train = torch.utils.data.TensorDataset(EEGData_Train, EEGLabel_Train)
-
 
     '''Loading Testing Data'''
     EEGData_Test, EEGLabel_Test = EEGData_Test[:]
@@ -94,11 +99,12 @@ def data_preprocess(EEGData_Train, EEGData_Test):
 
     # Create DataLoader for the Dataset
     eeg_train_dataloader = torch.utils.data.DataLoader(dataset=EEGData_Train, batch_size=bz, shuffle=True,
-                                                   drop_last=True)
+                                                       drop_last=True)
     eeg_test_dataloader = torch.utils.data.DataLoader(dataset=EEGData_Test, batch_size=bz, shuffle=False,
-                                                   drop_last=True)
+                                                      drop_last=True)
 
     return eeg_train_dataloader, eeg_test_dataloader
+
 
 def build_model(devices):
     '''
@@ -109,10 +115,17 @@ def build_model(devices):
     -------
     '''
     algorithm = config['algorithm']
-    Nc = config["data_param"]['Nc']
-    Nf = config["data_param"]['Nf']
-    Fs = config["data_param"]['Fs']
-    ws = config["data_param"]['ws']
+    classes = config['classes']
+    if classes==12:
+        Nc = config["data_param_12"]['Nc']
+        Nf = config["data_param_12"]['Nf']
+        Fs = config["data_param_12"]['Fs']
+        ws = config["data_param_12"]['ws']
+    if classes==40:
+        Nc = config["data_param_40"]['Nc']
+        Nf = config["data_param_40"]['Nf']
+        Fs = config["data_param_40"]['Fs']
+        ws = config["data_param_40"]['ws']
     lr = config[algorithm]['lr']
     wd = config[algorithm]['wd']
     Nt = int(Fs * ws)
@@ -153,7 +166,7 @@ def build_model(devices):
 
     net = net.to(devices)
 
-    if algorithm == 'SSVEPNet' or algorithm=='CNNBIGRU':
+    if algorithm == 'SSVEPNet' or algorithm == 'CNNBIGRU':
         stimulus_type = str(config[algorithm]["stimulus_type"])
         criterion = LossFunction.CELoss_Marginal_Smooth(Nf, stimulus_type=stimulus_type)
     else:

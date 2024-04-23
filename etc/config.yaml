@@ -1,4 +1,5 @@
-algorithm: CNNBIGRU
+algorithm: FBtCNN
+classes: 40 # 哪个分类数据 12-Dial 40-tsinghua
 
 # Parameters for training procedure
 train_param:
@@ -7,7 +8,7 @@ train_param:
                          # 0 or else——(N-1)/N vs 1/N(UI Approach)
 
 # Parameters for ssvep data
-data_param:
+data_param_12:
   ws: 1.0                      # window size of ssvep
   Nh: 180                      # number of trial
   Nc: 8                        # number of channel
@@ -15,6 +16,13 @@ data_param:
   Nf: 12                       # number of stimulus
   Ns: 10                       # number of subjects
 
+data_param_40:
+  ws: 1.0                      # window size of ssvep
+  Nh: 240                      # number of trial
+  Nc: 64                        # number of channel
+  Fs: 250                      # frequency of sample
+  Nf: 40                       # number of stimulus
+  Ns: 1                       # number of subjects
 
 # Parameters for DL-based methods
 EEGNet:

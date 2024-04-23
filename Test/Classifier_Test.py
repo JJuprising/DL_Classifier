@@ -14,6 +14,7 @@ from etc.global_config import config
 def run():
     # 1、Define parameters of eeg
     algorithm = config['algorithm']
+    classes=config['classes']
     print(f"{'*' * 20} Current Algorithm usage: {algorithm} {'*' * 20}")
 
     '''Parameters for training procedure'''
@@ -27,8 +28,12 @@ def run():
     Kf = 1
 
     '''Parameters for ssvep data'''
-    ws = config["data_param"]["ws"]
-    Ns = config["data_param"]['Ns']
+    if classes==12:
+        ws = config["data_param_12"]["ws"]
+        Ns = config["data_param_12"]['Ns']
+    if classes==40:
+        ws = config["data_param_40"]["ws"]
+        Ns = config["data_param_40"]['Ns']
 
     '''Parameters for DL-based methods'''
     epochs = config[algorithm]['epochs']
@@ -55,12 +60,19 @@ def run():
             #     EEGData_Train = EEGData_Test
             #     EEGData_Test = Temp
 
-            EEGData_Train = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=0.2, mode='train')
-            EEGData_Test = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=0.2, mode='test')
+            # -----------12class Intra-Subject Experiments--------------
+            if classes==12:
+                EEGData_Train = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=0.2, mode='train')
+                EEGData_Test = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=0.2, mode='test')
 
-            # -----------Inter-Subject Experiments--------------
+            # -----------12class Inter-Subject Experiments--------------
             # EEGData_Train = EEGDataset.getSSVEP12Inter(subject=testSubject, mode='train')
             # EEGData_Test = EEGDataset.getSSVEP12Inter(subject=testSubject, mode='test')
+
+            # -----------40class Intra-Subject Experiments--------------
+            if classes==40:
+                EEGData_Train = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=0.2, mode='train')
+                EEGData_Test = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=0.2, mode='test')
 
             eeg_train_dataloader, eeg_test_dataloader = Trainer_Script.data_preprocess(EEGData_Train, EEGData_Test)
 
