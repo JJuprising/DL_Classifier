@@ -70,9 +70,10 @@ def run():
                                                          criterion,
                                                          net, devices, lr_jitter=lr_jitter)
             final_test_acc_list.append(test_acc)
-
+            print(f"Subject {testSubject} Test Accuracy: {test_acc:.3f}")
         final_acc_list.append(final_test_acc_list)
 
+    # print(final_acc_list)
     # 3、Plot Result
     Ploter.plot_save_Result(final_acc_list, model_name=algorithm, dataset='DatasetA', UD=UD, ratio=ratio,
                             win_size=str(ws), text=True)
