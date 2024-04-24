@@ -1,9 +1,7 @@
-# Designer:Pan YuDong
-# Coder:God's hand
-# Time:2022/7/4 20:40
 import torch
 import time
 from etc.global_config import config
+from tqdm import tqdm
 
 def train_on_batch(num_epochs, train_iter, test_iter, optimizer, criterion, net, device, lr_jitter=False):
     algorithm = config['algorithm']
@@ -21,7 +19,8 @@ def train_on_batch(num_epochs, train_iter, test_iter, optimizer, criterion, net,
         net.train()
         sum_loss = 0.0
         sum_acc = 0.0
-        for data in train_iter:
+        progress_bar = tqdm(enumerate(train_iter), total=len(train_iter), desc=f'Epoch {epoch + 1}/{num_epochs}')
+        for batch_idx, data in progress_bar:
             if algorithm == "ConvCA":
                 X, temp, y = data
                 X = X.type(torch.FloatTensor).to(device)
@@ -43,6 +42,9 @@ def train_on_batch(num_epochs, train_iter, test_iter, optimizer, criterion, net,
                 scheduler.step()
             sum_loss += loss.item() / y.shape[0]
             sum_acc += (y == y_hat.argmax(dim=-1)).float().mean()
+
+            # Update progress bar description
+            progress_bar.set_postfix({'loss': sum_loss / (batch_idx + 1), 'acc': sum_acc / (batch_idx + 1)})
 
         train_loss = sum_loss / len(train_iter)
         train_acc = sum_acc / len(train_iter)
@@ -68,8 +70,9 @@ def train_on_batch(num_epochs, train_iter, test_iter, optimizer, criterion, net,
                     y_hat = net(X)
 
                 sum_acc += (y == y_hat.argmax(dim=-1)).float().mean()
+
             val_acc = sum_acc / len(test_iter)
-        print(f"epoch{epoch + 1}, train_loss={train_loss:.3f}, train_acc={train_acc:.3f}")
+        # print(f"epoch{epoch + 1}, train_loss={train_loss:.3f}, train_acc={train_acc:.3f}")
     print(
         f'training finished at {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} with final_valid_acc={val_acc:.3f}')
     torch.cuda.empty_cache()

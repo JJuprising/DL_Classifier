@@ -89,7 +89,7 @@ class ESNet(nn.Module):
     def forward(self, x):
         out = self.conv_layers(x)
         out = out.squeeze(2)
-        print(out.shape())
+        # print(out.shape())
         r_out = self.rnn(out)
         out = self.dense_layers(r_out)
         return out

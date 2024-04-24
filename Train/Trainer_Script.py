@@ -4,7 +4,7 @@
 import numpy as np
 import torch
 from torch import nn
-from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU
+from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer
 from Utils import Constraint, LossFunction, Script
 from etc.global_config import config
 
@@ -19,9 +19,14 @@ def data_preprocess(EEGData_Train, EEGData_Test):
     -------
     '''
     algorithm = config['algorithm']
-    ws = config["data_param"]["ws"]
-    Fs = config["data_param"]["Fs"]
-    Nf = config["data_param"]["Nf"]
+    ws = config["data_param_12"]["ws"]
+    Fs = config["data_param_12"]["Fs"]
+    Nf = config["data_param_12"]["Nf"]
+
+    # ws = config["data_param_40"]["ws"]
+    # Fs = config["data_param_40"]["Fs"]
+    # Nf = config["data_param_40"]["Nf"]
+
     bz = config[algorithm]["bz"]
 
 
@@ -109,10 +114,16 @@ def build_model(devices):
     -------
     '''
     algorithm = config['algorithm']
-    Nc = config["data_param"]['Nc']
-    Nf = config["data_param"]['Nf']
-    Fs = config["data_param"]['Fs']
-    ws = config["data_param"]['ws']
+    Nc = config["data_param_12"]['Nc']
+    Nf = config["data_param_12"]['Nf']
+    Fs = config["data_param_12"]['Fs']
+    ws = config["data_param_12"]['ws']
+
+    # Nc = config["data_param_40"]['Nc']
+    # Nf = config["data_param_40"]['Nf']
+    # Fs = config["data_param_40"]['Fs']
+    # ws = config["data_param_40"]['ws']
+
     lr = config[algorithm]['lr']
     wd = config[algorithm]['wd']
     Nt = int(Fs * ws)
@@ -133,6 +144,11 @@ def build_model(devices):
         net = SSVEPformer.SSVEPformer(depth=2, attention_kernal_length=31, chs_num=Nc, class_num=Nf,
                                       dropout=0.5)
         net.apply(Constraint.initialize_weights)
+    elif algorithm == "CAIFormer":
+        net = CAIFormer.ESNet(Nc, Nt, Nf)
+
+        net = Constraint.Spectral_Normalization(net)
+
 
     elif algorithm == "SSVEPNet":
         net = SSVEPNet.ESNet(Nc, Nt, Nf)
