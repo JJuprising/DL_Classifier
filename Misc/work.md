@@ -24,5 +24,12 @@ AffectBCI用于存放情感脑机参考代码,其中AffectBCI/VIT/AITST.py做的
 
 ![image-20240423201830517](F:\DL_Classifier\Misc\image-20240423201830517.png)
 
-时序特征作为输入，1DCNN用于提取短期信息，Channel SE and Spatial Future Aggregation用注意力机制提取时空特征，Transformer用于提取长期信息s
+时序特征作为输入，1DCNN用于提取短期信息，Channel SE and Spatial Future Aggregation用注意力机制提取时空特征，Transformer用于提取长期信息
 
+2.A Deep Channel Attention Transformer for Multimodal EEG-EOG-Based Vigilance Estimation
+
+![image-20240423203559905](F:\DL_Classifier\Misc\image-20240423203559905.png)
+
+DCAT被细分为四个部分：
+
+**Conv层**、**深度通道注意（DCA）层**、**Transformer层**和**回归层**。具体来说，在Conv层中，2D-CNN用于提取初步的**浅层特征**。浅层特征被放入下一层DCA中，以有效地提取深层局部特征。然后利用Transformer中的多头自注意算法提取被忽略的全局特征。全局特征的提取可以提高模型的鲁棒性。在最后的回归层中，为了完成回归任务，进行了一些处理并使用了线性层。

@@ -1,6 +1,8 @@
 # Designer:Pan YuDong
 # Coder:God's hand
 # Time:2022/1/28 2:18
+import time
+
 import matplotlib
 import pandas as pd
 import numpy as np
@@ -107,5 +109,6 @@ def plot_save_Result(final_acc_list, model_name, dataset='Benchmark', UD=0, rati
            else:
                plt.text(a[i] - delta * 6.0, data1[i] + delta * 0.1,
                         f'{final_mean_list[-1] * 100:.2f}±{final_var_list[-1] * 100:.2f}', color='r')
-    plt.savefig(f'../Result/{dataset}/{model_name}/{proportion}_{val_way}_Classification_Result({win_size}S).png')
+    current = str(time.time())
+    plt.savefig(f'../Result/{dataset}/{model_name}/{proportion}_{val_way}_Classification_Result({win_size}S_time{current}).png')
     plt.show()

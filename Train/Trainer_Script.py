@@ -4,7 +4,7 @@
 import numpy as np
 import torch
 from torch import nn
-from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU
+from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer
 from Utils import Constraint, LossFunction, Script
 from etc.global_config import config
 
@@ -54,6 +54,7 @@ def data_preprocess(EEGData_Train, EEGData_Test):
         elif algorithm == "DDGCNN":
             EEGData_Train = torch.swapaxes(EEGData_Train, axis0=1, axis1=3)  # (Nh, 1, Nc, Nt) => (Nh, Nt, Nc, 1)
 
+
         print("EEGData_Train.shape", EEGData_Train.shape)
         print("EEGLabel_Train.shape", EEGLabel_Train.shape)
         EEGData_Train = torch.utils.data.TensorDataset(EEGData_Train, EEGLabel_Train)
@@ -87,6 +88,7 @@ def data_preprocess(EEGData_Train, EEGData_Test):
 
         elif algorithm == "DDGCNN":
             EEGData_Test = torch.swapaxes(EEGData_Test, axis0=1, axis1=3)  # (Nh, 1, Nc, Nt) => (Nh, Nt, Nc, 1)
+
 
         print("EEGData_Test.shape", EEGData_Test.shape)
         print("EEGLabel_Test.shape", EEGLabel_Test.shape)
@@ -141,7 +143,9 @@ def build_model(devices):
     elif algorithm == "CNNBIGRU":
         net = CNNBIGRU.ESNet(Nc, Nt, Nf)
         net = Constraint.Spectral_Normalization(net)
-
+    elif algorithm == "CAIFormer":
+        net = CAIFormer.ESNet(Nc, Nt, Nf)
+        net = Constraint.Spectral_Normalization(net)
     elif algorithm == "DDGCNN":
         bz = config[algorithm]["bz"]
         norm = config[algorithm]["norm"]
@@ -153,7 +157,7 @@ def build_model(devices):
 
     net = net.to(devices)
 
-    if algorithm == 'SSVEPNet' or algorithm=='CNNBIGRU':
+    if algorithm == 'SSVEPNet' or algorithm=='CNNBIGRU' or algorithm=='CAIFormer':
         stimulus_type = str(config[algorithm]["stimulus_type"])
         criterion = LossFunction.CELoss_Marginal_Smooth(Nf, stimulus_type=stimulus_type)
     else:
