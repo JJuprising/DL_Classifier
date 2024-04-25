@@ -143,8 +143,9 @@ class getSSVEP12Intra(Dataset):
         labels = labelfile['Label']
         print(labels)
         label_data = torch.from_numpy(labels)
-        print(label_data.shape) # torch.Size([180, 1])
+        print(label_data.shape)  # torch.Size([180, 1])
         return label_data - 1
+
 
 # TODO: 待补充清华跨被试数据处理
 class getSSVEP40Inter(Dataset):
@@ -154,7 +155,8 @@ class getSSVEP40Inter(Dataset):
         self.Nc = 64  # number of channels
         self.Nt = 1500  # number of time points
         self.Nf = 40  # number of target frequency
-        self.Fs= 250  # Sample Frequency
+        self.Fs = 250  # Sample Frequency
+
 
 # 基于清华数据集 实验由6个区块组成。每个区块包含40次试验对应40目标，持续5s
 # 时间点要不要直接切掉休息的0.5s
@@ -217,12 +219,12 @@ class getSSVEP40Intra(Dataset):
         subjectfile = scipy.io.loadmat(f'../data/tsinghua/S{self.subject}.mat')
         samples = subjectfile['data']  # (64, 1500, 40, 6)
         # 处理格式
-        data = samples.transpose((3, 2, 0, 1)) # (6, 40, 64, 1500)
-        data_stack = [data[i:i + 1, :, :, :].squeeze(0) for i in range(data.shape[0])] # (1, 40, 64, 1500)
-        eeg_data = np.vstack(data_stack) # (240,64,1500)
+        data = samples.transpose((3, 2, 0, 1))  # (6, 40, 64, 1500)
+        data_stack = [data[i:i + 1, :, :, :].squeeze(0) for i in range(data.shape[0])]  # (1, 40, 64, 1500)
+        eeg_data = np.vstack(data_stack)  # (240,64,1500)
         eeg_data = eeg_data.reshape(-1, 1, self.Nc, self.Nt)  # (240, 1, 64, 1500) # 这个第二维度什么作用？
-        eeg_data=torch.from_numpy(eeg_data)
-        print(eeg_data.shape) # (trails, 1, channels, times)
+        eeg_data = torch.from_numpy(eeg_data)
+        print(eeg_data.shape)  # (trails, 1, channels, times)
         return eeg_data
 
     # get the single label data
@@ -230,4 +232,4 @@ class getSSVEP40Intra(Dataset):
         label_array = [[i] for i in np.tile(np.arange(self.Nf), 6)]  # 从 0 到 39 个trails循环 6 个block，每个元素是单个数组
         label_data = torch.tensor(label_array)
         print(label_data.shape)
-        return label_data # 不需要和12分类一样-1，这里已经是从0开始了
+        return label_data  # 不需要和12分类一样-1，这里已经是从0开始了

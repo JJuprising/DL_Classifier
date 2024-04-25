@@ -19,13 +19,15 @@ def data_preprocess(EEGData_Train, EEGData_Test):
     -------
     '''
     algorithm = config['algorithm']
-    ws = config["data_param_12"]["ws"]
-    Fs = config["data_param_12"]["Fs"]
-    Nf = config["data_param_12"]["Nf"]
-
-    # ws = config["data_param_40"]["ws"]
-    # Fs = config["data_param_40"]["Fs"]
-    # Nf = config["data_param_40"]["Nf"]
+    classes=config['classes']
+    if classes==12:
+        ws = config["data_param_12"]["ws"]
+        Fs = config["data_param_12"]["Fs"]
+        Nf = config["data_param_12"]["Nf"]
+    elif classes==40:
+        ws = config["data_param_40"]["ws"]
+        Fs = config["data_param_40"]["Fs"]
+        Nf = config["data_param_40"]["Nf"]
 
     bz = config[algorithm]["bz"]
 
@@ -114,15 +116,17 @@ def build_model(devices):
     -------
     '''
     algorithm = config['algorithm']
-    Nc = config["data_param_12"]['Nc']
-    Nf = config["data_param_12"]['Nf']
-    Fs = config["data_param_12"]['Fs']
-    ws = config["data_param_12"]['ws']
-
-    # Nc = config["data_param_40"]['Nc']
-    # Nf = config["data_param_40"]['Nf']
-    # Fs = config["data_param_40"]['Fs']
-    # ws = config["data_param_40"]['ws']
+    classes = config['classes']
+    if classes == 12:
+        Nc = config["data_param_12"]['Nc']
+        Nf = config["data_param_12"]['Nf']
+        Fs = config["data_param_12"]['Fs']
+        ws = config["data_param_12"]['ws']
+    elif classes == 40:
+        Nc = config["data_param_40"]['Nc']
+        Nf = config["data_param_40"]['Nf']
+        Fs = config["data_param_40"]['Fs']
+        ws = config["data_param_40"]['ws']
 
     lr = config[algorithm]['lr']
     wd = config[algorithm]['wd']
