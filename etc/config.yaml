@@ -1,4 +1,4 @@
-algorithm: CAIFormer
+algorithm: FBSSVEPformer
 classes: 12 # 哪个分类数据 12-Dial 40-tsinghua
 
 # Parameters for training procedure
@@ -72,6 +72,13 @@ SSVEPformer:
   lr: 0.001                       # learning rate
   wd: 0.0001                   # weight decay
   lr_jitter: false             # learning rate scheduler
+
+FBSSVEPformer:
+  epochs: 100                  # number of epochs
+  bz: 30                     # batch size
+  lr: 0.002                       # learning rate
+  wd: 0.0001                   # weight decay
+  lr_jitter: true             # learning rate scheduler
 
 DDGCNN:
   epochs: 500                  # number of epochs
