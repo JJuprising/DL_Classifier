@@ -77,19 +77,19 @@ def run():
             # EEGData_Test = EEGDataset.getSSVEP12Inter(subject=testSubject, mode='test')
 
             # -----------40class Intra-Subject Experiments--------------
-            if classes==40:
-                EEGData_Train = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=train_radio, mode='train')
-                EEGData_Test = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=train_radio, mode='test')
+            # if classes==40:
+            #     EEGData_Train = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=train_radio, mode='train')
+            #     EEGData_Test = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=train_radio, mode='test')
 
             eeg_train_dataloader, eeg_test_dataloader = Trainer_Script.data_preprocess(EEGData_Train, EEGData_Test)
 
             # Define Network
             net, criterion, optimizer = Trainer_Script.build_model(devices)
-            test_acc = Classifier_Trainer.train_on_batch(epochs, eeg_train_dataloader, eeg_test_dataloader, optimizer,
+            test_acc = Classifier_Trainer.train_on_batch(testSubject, epochs, eeg_train_dataloader, eeg_test_dataloader, optimizer,
                                                          criterion,
                                                          net, devices, lr_jitter=lr_jitter)
             final_test_acc_list.append(test_acc)
-            print(f"Subject {testSubject} Test Accuracy: {test_acc:.3f}")
+
         final_acc_list.append(final_test_acc_list)
 
     # print(final_acc_list)
