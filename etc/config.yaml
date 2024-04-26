@@ -1,5 +1,5 @@
-algorithm: FBSSVEPformer
-classes: 12 # 哪个分类数据 12-Dial 40-tsinghua
+algorithm: EEGNet
+classes: 40 # 哪个分类数据 12-Dial 40-tsinghua
 
 # Parameters for training procedure
 train_param:

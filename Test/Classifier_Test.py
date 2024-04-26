@@ -17,7 +17,7 @@ def run():
     algorithm = config['algorithm']
     classes=config['classes']
     print(f"{'*' * 20} Current Algorithm usage: {algorithm} {'*' * 20}")
-
+    train_radio=0
     '''Parameters for training procedure'''
     UD = config["train_param"]['UD']
     ratio = config["train_param"]['ratio']
@@ -25,8 +25,14 @@ def run():
         Kf = 5
     elif ratio == 2:
         Kf = 2
-
     Kf = 1
+    # 训练集占比
+    if ratio == 1:
+        train_radio=0.8
+    elif ratio == 2:
+        train_radio=0.5
+    elif ratio == 3:
+        train_radio=0.2
 
     '''Parameters for ssvep data'''
     if classes==12:
@@ -63,8 +69,8 @@ def run():
 
             # -----------12class Intra-Subject Experiments--------------
             if classes==12:
-                EEGData_Train = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=0.8, mode='train')
-                EEGData_Test = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=0.8, mode='test')
+                EEGData_Train = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=train_radio, mode='train')
+                EEGData_Test = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=train_radio, mode='test')
 
             # -----------12class Inter-Subject Experiments--------------
             # EEGData_Train = EEGDataset.getSSVEP12Inter(subject=testSubject, mode='train')
@@ -72,8 +78,8 @@ def run():
 
             # -----------40class Intra-Subject Experiments--------------
             if classes==40:
-                EEGData_Train = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=0.8, mode='train')
-                EEGData_Test = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=0.8, mode='test')
+                EEGData_Train = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=train_radio, mode='train')
+                EEGData_Test = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=train_radio, mode='test')
 
             eeg_train_dataloader, eeg_test_dataloader = Trainer_Script.data_preprocess(EEGData_Train, EEGData_Test)
 
