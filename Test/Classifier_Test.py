@@ -23,6 +23,7 @@ def run():
     ratio = config["train_param"]['ratio']
     if ratio == 1 or ratio == 3:
         Kf = 5
+        train_ratio = 1
     elif ratio == 2:
         Kf = 2
 
