@@ -15,12 +15,13 @@ from etc.global_config import config
 def run():
     # 1、Define parameters of eeg
     algorithm = config['algorithm']
-    classes=config['classes']
-    print(f"{'*' * 20} Current Algorithm usage: {algorithm} {'*' * 20}")
-
+    classes = config['classes']
+    print(f"{'*' * 20} Current Algorithm usage: {algorithm} Using Dataset {classes} classes {'*' * 20}")
+    train_radio = 0
     '''Parameters for training procedure'''
-    UD = config["train_param"]['UD'] 
+    UD = config["train_param"]['UD']
     ratio = config["train_param"]['ratio']
+    print(f"{'*' * 20} train_param: UD-{UD} train_radio-{train_radio} {'*' * 20}")
     if ratio == 1 or ratio == 3:
         Kf = 5
         train_ratio = 1
@@ -30,10 +31,10 @@ def run():
     Kf = 1
 
     '''Parameters for ssvep data'''
-    if classes==12:
+    if classes == 12:
         ws = config["data_param_12"]["ws"]
         Ns = config["data_param_12"]['Ns']
-    if classes==40:
+    if classes == 40:
         ws = config["data_param_40"]["ws"]
         Ns = config["data_param_40"]['Ns']
 
@@ -62,19 +63,30 @@ def run():
             #     EEGData_Train = EEGData_Test
             #     EEGData_Test = Temp
 
-            # -----------12class Intra-Subject Experiments--------------
-            if classes==12:
-                # EEGData_Train = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=0.8, mode='train')
-                # EEGData_Test = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=0.8, mode='test')
-
-            # -----------12class Inter-Subject Experiments--------------
-                EEGData_Train = EEGDataset.getSSVEP12Inter(subject=testSubject, mode='train')
-                EEGData_Test = EEGDataset.getSSVEP12Inter(subject=testSubject, mode='test')
-
-            # -----------40class Intra-Subject Experiments--------------
-            if classes==40:
-                EEGData_Train = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=0.8, mode='train')
-                EEGData_Test = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=0.8, mode='test')
+            # -----------12classes Experiments--------------
+            if classes == 12:
+                # -----------12classes Intra-Subject Experiments--------------
+                if UD == 0:
+                    EEGData_Train = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=train_radio,
+                                                               mode='train')
+                    EEGData_Test = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=train_radio, mode='test')
+                # -----------12classes Inter-Subject Experiments--------------
+                elif UD == 1:
+                    EEGData_Train = EEGDataset.getSSVEP12Inter(subject=testSubject,
+                                                               mode='train')
+                    EEGData_Test = EEGDataset.getSSVEP12Inter(subject=testSubject,  mode='test')
+            # -----------40classes  Experiments--------------
+            elif classes == 40:
+                # -----------40classes Intra-Subject Experiments--------------
+                if UD == 0:
+                    EEGData_Train = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=train_radio,
+                                                               mode='train')
+                    EEGData_Test = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=train_radio, mode='test')
+                # -----------40classes Inter-Subject Experiments--------------
+                elif UD == 1:
+                    EEGData_Train = EEGDataset.getSSVEP40Inter(subject=testSubject,
+                                                               mode='train')
+                    EEGData_Test = EEGDataset.getSSVEP40Inter(subject=testSubject,  mode='test')
 
             eeg_train_dataloader, eeg_test_dataloader = Trainer_Script.data_preprocess(EEGData_Train, EEGData_Test)
 

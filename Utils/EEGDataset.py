@@ -204,22 +204,22 @@ class getSSVEP40Inter(Dataset):
 
     def read_EEGData(self):
         eeg_data = self.get_DataSub(1)
-        for i in range(0, Ns-1):
+        for i in range(1, Ns):
             single_subject_eeg_data = self.get_DataSub(i + 1)
             eeg_data = torch.cat((eeg_data, single_subject_eeg_data), dim=0)
         return eeg_data
 
     # get the single label data
-    def get_DataLabel(self, index):
+    def get_DataLabel(self):
         label_array = [[i] for i in np.tile(np.arange(self.Nf), 6)]  # 从 0 到 39 个trails循环 6 个block，每个元素是单个数组
         label_data = torch.tensor(label_array)
         # print(label_data.shape)
         return label_data  # 不需要和12分类一样-1，这里已经是从0开始了
 
     def read_EEGLabel(self):
-        label_data = self.get_DataLabel(1)
+        label_data = self.get_DataLabel()
         for i in range(0, Ns-1):
-            single_subject_label_data = self.get_DataLabel(i)
+            single_subject_label_data = self.get_DataLabel()
             label_data = torch.cat((label_data, single_subject_label_data), dim=0)
         return label_data
 

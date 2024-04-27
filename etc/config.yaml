@@ -19,10 +19,10 @@ data_param_12:
 data_param_40:
   ws: 1.0                      # window size of ssvep
   Nh: 240                      # number of trial
-  Nc: 64                        # number of channel
+  Nc: 9                        # number of channel
   Fs: 250                      # frequency of sample
   Nf: 40                       # number of stimulus
-  Ns: 1                       # number of subjects
+  Ns: 35                       # number of subjects
 
 # Parameters for DL-based methods
 EEGNet:
