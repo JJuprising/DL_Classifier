@@ -1,0 +1,11 @@
+yaml
+pyyaml
+scipy
+matplotlib
+numpy
+einops
+pandas
+tqdm
+utils
+opencv-python
+fightingcv_attention
