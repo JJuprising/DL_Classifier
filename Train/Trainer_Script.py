@@ -4,7 +4,7 @@
 import numpy as np
 import torch
 from torch import nn
-from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer
+from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer, CAIFormerNew
 from Utils import Constraint, LossFunction, Script
 from etc.global_config import config
 
@@ -146,7 +146,6 @@ def build_model(devices):
         net.apply(Constraint.initialize_weights)
     elif algorithm == "CAIFormer":
         net = CAIFormer.ESNet(Nc, Nt, Nf)
-
         net = Constraint.Spectral_Normalization(net)
 
 
@@ -154,6 +153,11 @@ def build_model(devices):
         net = SSVEPNet.ESNet(Nc, Nt, Nf)
         net = Constraint.Spectral_Normalization(net)
 
+
+    elif algorithm == "CAIFormerNew":
+        net = CAIFormerNew.iTransformerFFT(depth=2,heads=8,chs_num=Nc,class_num=Nf,tt_dropout=0.3,ff_dropout=0.5,T=Nt)
+        net = Constraint.Spectral_Normalization(net)
+        #net.apply(Constraint.initialize_weights)
     elif algorithm == "CNNBIGRU":
         net = CNNBIGRU.ESNet(Nc, Nt, Nf)
         net = Constraint.Spectral_Normalization(net)

@@ -63,12 +63,12 @@ def run():
 
             # -----------12class Intra-Subject Experiments--------------
             if classes==12:
-                EEGData_Train = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=0.8, mode='train')
-                EEGData_Test = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=0.8, mode='test')
+                # EEGData_Train = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=0.8, mode='train')
+                # EEGData_Test = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=0.8, mode='test')
 
             # -----------12class Inter-Subject Experiments--------------
-            # EEGData_Train = EEGDataset.getSSVEP12Inter(subject=testSubject, mode='train')
-            # EEGData_Test = EEGDataset.getSSVEP12Inter(subject=testSubject, mode='test')
+                EEGData_Train = EEGDataset.getSSVEP12Inter(subject=testSubject, mode='train')
+                EEGData_Test = EEGDataset.getSSVEP12Inter(subject=testSubject, mode='test')
 
             # -----------40class Intra-Subject Experiments--------------
             if classes==40:
