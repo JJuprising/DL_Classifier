@@ -1,9 +1,9 @@
-algorithm: EEGNet
+algorithm: SSVEPNet
 classes: 12 # 哪个分类数据 12-Dial 40-tsinghua
 
 # Parameters for training procedure
 train_param:
-  UD: 0                  # -1——Unsupervised, 0——User-Dependent；1——User-Independent
+  UD: 1                  # -1——Unsupervised, 0——User-Dependent；1——User-Independent
   ratio: 1              # -1——Training-Free, 1——80% vs 20%;2——50% vs 50%;3——20% vs 80%(UD Approach)
                          # 0 or else——(N-1)/N vs 1/N(UI Approach)
 
@@ -19,10 +19,10 @@ data_param_12:
 data_param_40:
   ws: 1.0                      # window size of ssvep
   Nh: 240                      # number of trial
-  Nc: 64                        # number of channel
+  Nc: 9                        # number of channel
   Fs: 250                      # frequency of sample
   Nf: 40                       # number of stimulus
-  Ns: 1                       # number of subjects
+  Ns: 5                       # number of subjects
 
 # Parameters for DL-based methods
 EEGNet:
