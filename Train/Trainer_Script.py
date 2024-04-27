@@ -4,7 +4,7 @@
 import numpy as np
 import torch
 from torch import nn
-from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer, CAIFormerNew
+from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer, FBSSVEPformer
 from Utils import Constraint, LossFunction, Script
 from etc.global_config import config
 
@@ -19,13 +19,15 @@ def data_preprocess(EEGData_Train, EEGData_Test):
     -------
     '''
     algorithm = config['algorithm']
-    ws = config["data_param_12"]["ws"]
-    Fs = config["data_param_12"]["Fs"]
-    Nf = config["data_param_12"]["Nf"]
-
-    # ws = config["data_param_40"]["ws"]
-    # Fs = config["data_param_40"]["Fs"]
-    # Nf = config["data_param_40"]["Nf"]
+    classes=config['classes']
+    if classes==12:
+        ws = config["data_param_12"]["ws"]
+        Fs = config["data_param_12"]["Fs"]
+        Nf = config["data_param_12"]["Nf"]
+    elif classes==40:
+        ws = config["data_param_40"]["ws"]
+        Fs = config["data_param_40"]["Fs"]
+        Nf = config["data_param_40"]["Nf"]
 
     bz = config[algorithm]["bz"]
 
@@ -41,9 +43,9 @@ def data_preprocess(EEGData_Train, EEGData_Test):
         EEGTemp_Train = EEGTemp_Train.repeat((EEGData_Train.shape[0], 1, 1, 1))  # (Nh × Nf × Nt × Nc)
         EEGTemp_Train = torch.swapaxes(EEGTemp_Train, axis0=1, axis1=3)  # (Nh × Nc × Nt × Nf)
 
-        print("EEGData_Train.shape", EEGData_Train.shape)
-        print("EEGTemp_Train.shape", EEGTemp_Train.shape)
-        print("EEGLabel_Train.shape", EEGLabel_Train.shape)
+        # print("EEGData_Train.shape", EEGData_Train.shape)
+        # print("EEGTemp_Train.shape", EEGTemp_Train.shape)
+        # print("EEGLabel_Train.shape", EEGLabel_Train.shape)
         EEGData_Train = torch.utils.data.TensorDataset(EEGData_Train, EEGTemp_Train, EEGLabel_Train)
 
     else:
@@ -54,6 +56,19 @@ def data_preprocess(EEGData_Train, EEGData_Test):
         elif algorithm == "SSVEPformer":
             EEGData_Train = SSVEPformer.complex_spectrum_features(EEGData_Train.numpy(), FFT_PARAMS=[Fs, ws])
             EEGData_Train = torch.from_numpy(EEGData_Train)
+            EEGData_Train = EEGData_Train.squeeze(1)
+
+        elif algorithm == "FBSSVEPformer":
+            subband_data = []
+            for i in range(3):
+                lowcut = i * 8 + 2 # 根据数据集 1 的特性设置截止频率
+                highcut = 80
+                filtered_data = FBSSVEPformer.butter_bandpass_filter(EEGData_Train, lowcut, highcut, 256)
+                filtered_data = FBSSVEPformer.complex_spectrum_features(filtered_data, FFT_PARAMS=[Fs, ws]) # 数据维度：(36, 1, 8, 560)
+                filtered_data = torch.from_numpy(filtered_data)
+                subband_data.append(filtered_data)
+            # 需要转换维度为(36, 8, 3, 256)
+            EEGData_Train = torch.stack(subband_data, dim=3)
             EEGData_Train = EEGData_Train.squeeze(1)
 
         elif algorithm == "DDGCNN":
@@ -90,6 +105,19 @@ def data_preprocess(EEGData_Train, EEGData_Test):
             EEGData_Test = torch.from_numpy(EEGData_Test)
             EEGData_Test = EEGData_Test.squeeze(1)
 
+        elif algorithm == "FBSSVEPformer":
+            subband_data = []
+            for i in range(3):
+                lowcut = i * 8 + 2# 根据数据集 1 的特性设置截止频率
+                highcut = 80
+                filtered_data = FBSSVEPformer.butter_bandpass_filter(EEGData_Test, lowcut, highcut, 256)
+                filtered_data = FBSSVEPformer.complex_spectrum_features(filtered_data, FFT_PARAMS=[Fs, ws])
+                filtered_data = torch.from_numpy(filtered_data)
+                subband_data.append(filtered_data)
+            EEGData_Test = torch.stack(subband_data, dim=3)
+            EEGData_Test = EEGData_Test.squeeze(1)
+
+
         elif algorithm == "DDGCNN":
             EEGData_Test = torch.swapaxes(EEGData_Test, axis0=1, axis1=3)  # (Nh, 1, Nc, Nt) => (Nh, Nt, Nc, 1)
 
@@ -114,15 +142,17 @@ def build_model(devices):
     -------
     '''
     algorithm = config['algorithm']
-    Nc = config["data_param_12"]['Nc']
-    Nf = config["data_param_12"]['Nf']
-    Fs = config["data_param_12"]['Fs']
-    ws = config["data_param_12"]['ws']
-
-    # Nc = config["data_param_40"]['Nc']
-    # Nf = config["data_param_40"]['Nf']
-    # Fs = config["data_param_40"]['Fs']
-    # ws = config["data_param_40"]['ws']
+    classes = config['classes']
+    if classes == 12:
+        Nc = config["data_param_12"]['Nc']
+        Nf = config["data_param_12"]['Nf']
+        Fs = config["data_param_12"]['Fs']
+        ws = config["data_param_12"]['ws']
+    elif classes == 40:
+        Nc = config["data_param_40"]['Nc']
+        Nf = config["data_param_40"]['Nf']
+        Fs = config["data_param_40"]['Fs']
+        ws = config["data_param_40"]['ws']
 
     lr = config[algorithm]['lr']
     wd = config[algorithm]['wd']
@@ -144,6 +174,10 @@ def build_model(devices):
         net = SSVEPformer.SSVEPformer(depth=2, attention_kernal_length=31, chs_num=Nc, class_num=Nf,
                                       dropout=0.5)
         net.apply(Constraint.initialize_weights)
+    elif algorithm == "FBSSVEPformer":
+        net = FBSSVEPformer.FB_SSVEPformer(depth=2, attention_kernal_length=31, chs_num=Nc, class_num=Nf,
+                                      dropout=0.5, num_subbands=3)
+        net.apply(Constraint.initialize_weights)
     elif algorithm == "CAIFormer":
         net = CAIFormer.ESNet(Nc, Nt, Nf)
         net = Constraint.Spectral_Normalization(net)
@@ -153,11 +187,6 @@ def build_model(devices):
         net = SSVEPNet.ESNet(Nc, Nt, Nf)
         net = Constraint.Spectral_Normalization(net)
 
-
-    elif algorithm == "CAIFormerNew":
-        net = CAIFormerNew.iTransformerFFT(depth=2,heads=8,chs_num=Nc,class_num=Nf,tt_dropout=0.3,ff_dropout=0.5,T=Nt)
-        net = Constraint.Spectral_Normalization(net)
-        #net.apply(Constraint.initialize_weights)
     elif algorithm == "CNNBIGRU":
         net = CNNBIGRU.ESNet(Nc, Nt, Nf)
         net = Constraint.Spectral_Normalization(net)

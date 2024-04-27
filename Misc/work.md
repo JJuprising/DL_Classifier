@@ -14,7 +14,6 @@ Dataset1就是这个仓库的数据，12分类，[Nakanishi et al., 2015](https:
 
 Dataset2 [Wang et al., 2016](https://www.sciencedirect.com/science/article/pii/S0893608023002319#b42) 40 目标脑机接口 (BCI) 拼写器*A* *Benchmark* *Dataset* *for*  *SSVEP*-*Based*  *Brain* -*Computer* *Interfaces* 也就是清华数据集http://bci.med.tsinghua.edu.cn/download.html
 
-
 DDGCNN:两个数据集
 
 Dataset1 [MH et all,2019](https://academic.oup.com/gigascience/article/8/5/giz002/5304369)
@@ -34,7 +33,6 @@ Dataset2 [Wang et al., 2016](https://www.sciencedirect.com/science/article/pii/S
 连续的EEG数据被分割成6秒的时段（500毫秒前刺激，5.5秒后刺激开始）。随后，时段被重新采样到250赫兹。因此，每次试验包含1500个时间点。最后，这些数据以双精度浮点值的形式存储在MATLAB中，并命名为受试者索引（即S01.mat，…，S35.mat）。对于每个文件，在MATLAB中加载的数据生成一个名为“data”的4-D矩阵，其维度为**[64, 1500, 40, 6]**。四个维度分别表示“电极索引”、“时间点”、“目标索引”和“区块索引”。电极位置保存在一个“64-channels.loc”文件中。每种SSVEP频率都有6次试验可用。40个目标指数的频率和相位值保存在一个“Freq_Phase.mat”文件中。
 所有受试者的信息列在一个“Sub_info.txt”文件中。对于每个受试者，有五个因素，包括“受试者索引”、“性别”、“年龄”、“用手习惯”和“组别”。根据他们在SSVEP-based BCIs中的经验，受试者被分为“有经验”组（8名受试者，S01-S08）和“无经验”组（27名受试者，S09-S35）。
 
-
 # 4.22
 
 1.论文标题or链接
@@ -53,13 +51,13 @@ Dataset2 [Wang et al., 2016](https://www.sciencedirect.com/science/article/pii/S
 
 提出了一种新的情绪脑电模型CSET—CCA，该模型能够全面提取脑电信号的长、短时特征，并选择关键的空间信息。
 
-![image-20240423201830517](F:\DL_Classifier\Misc\image-20240423201830517.png)
+![image-20240423201830517](.\image-20240423201830517.png)
 
 时序特征作为输入，1DCNN用于提取短期信息，Channel SE and Spatial Future Aggregation用注意力机制提取时空特征，Transformer用于提取长期信息
 
 2.A Deep Channel Attention Transformer for Multimodal EEG-EOG-Based Vigilance Estimation
 
-![image-20240423203559905](F:\DL_Classifier\Misc\image-20240423203559905.png)
+![image-20240423203559905](.\image-20240423203559905.png)
 
 DCAT被细分为四个部分：
 
