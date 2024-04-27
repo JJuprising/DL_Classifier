@@ -103,7 +103,7 @@ CAIFormer:
 
 
 CAIFormerNew:
-  epochs: 500                  # number of epochs
+  epochs: 100                  # number of epochs
   bz: 30                     # batch size
   lr: 0.01                       # learning rate
   wd: 0.0001                   # weight decay
