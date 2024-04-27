@@ -8,7 +8,7 @@ from torch import nn
 from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer, FBSSVEPformer
 
 from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CNNAttentionGRU, \
-    CNNAttentionMLP, CACAM, CACAMNew, PSDCNN, VIT
+    CNNAttentionMLP, CACAM, CACAMNew, PSDCNN, CAIFormerNew
 
 from Utils import Constraint, LossFunction, Script
 from etc.global_config import config
@@ -62,9 +62,9 @@ def data_preprocess(EEGData_Train, EEGData_Test):
             EEGData_Train = SSVEPformer.complex_spectrum_features(EEGData_Train.numpy(), FFT_PARAMS=[Fs, ws])
             EEGData_Train = torch.from_numpy(EEGData_Train)
             EEGData_Train = EEGData_Train.squeeze(1)
-        elif algorithm == "VIT":
-            EEGData_Train = EEGData_Train.squeeze(1)
-            EEGData_Train = VIT.extract_freq_domain_features(EEGData_Train.numpy())
+        # elif algorithm == "VIT":
+        #     EEGData_Train = EEGData_Train.squeeze(1)
+        #     EEGData_Train = VIT.extract_freq_domain_features(EEGData_Train.numpy())
         elif algorithm == "FBSSVEPformer":
             subband_data = []
             for i in range(3):
@@ -140,9 +140,9 @@ def data_preprocess(EEGData_Train, EEGData_Test):
         elif algorithm == "PSDCNN":
             EEGData_Test = PSDCNN.calculate_sliding_psd(EEGData_Test.numpy(), Fs)
             EEGData_Test = torch.from_numpy(EEGData_Test).unsqueeze(1)
-        elif algorithm == "VIT":
-            EEGData_Test=   EEGData_Test.squeeze(1)
-            EEGData_Test = VIT.extract_freq_domain_features(EEGData_Test.numpy())
+        # elif algorithm == "VIT":
+        #     EEGData_Test=   EEGData_Test.squeeze(1)
+        #     EEGData_Test = VIT.extract_freq_domain_features(EEGData_Test.numpy())
 
 
         print("EEGData_Test.shape", EEGData_Test.shape)

@@ -17,16 +17,16 @@ def run():
     algorithm = config['algorithm']
     classes = config['classes']
     print(f"{'*' * 20} Current Algorithm usage: {algorithm} Using Dataset {classes} classes {'*' * 20}")
-    train_radio = 0
+    train_radio = 0.8
     '''Parameters for training procedure'''
     UD = config["train_param"]['UD']
     ratio = config["train_param"]['ratio']
     print(f"{'*' * 20} train_param: UD-{UD} train_radio-{train_radio} {'*' * 20}")
-    if ratio == 1 or ratio == 3:
-        Kf = 5
-        train_ratio = 1
-    elif ratio == 2:
-        Kf = 2
+    # if ratio == 1 or ratio == 3:
+    #     Kf = 5
+    #     train_ratio = 1
+    # elif ratio == 2:
+    #     Kf = 2
 
     Kf = 1
 
@@ -92,7 +92,7 @@ def run():
 
             # Define Network
             net, criterion, optimizer = Trainer_Script.build_model(devices)
-            test_acc = Classifier_Trainer.train_on_batch(epochs, eeg_train_dataloader, eeg_test_dataloader, optimizer,
+            test_acc = Classifier_Trainer.train_on_batch(testSubject, epochs, eeg_train_dataloader, eeg_test_dataloader, optimizer,
                                                          criterion,
                                                          net, devices, lr_jitter=lr_jitter)
             final_test_acc_list.append(test_acc)
