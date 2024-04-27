@@ -180,7 +180,6 @@ def build_model(devices):
         net.apply(Constraint.initialize_weights)
     elif algorithm == "CAIFormer":
         net = CAIFormer.ESNet(Nc, Nt, Nf)
-
         net = Constraint.Spectral_Normalization(net)
 
 
