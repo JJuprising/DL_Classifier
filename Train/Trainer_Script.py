@@ -257,7 +257,7 @@ def build_model(devices):
     else:
         criterion = nn.CrossEntropyLoss(reduction="none")
 
-    if algorithm == "SSVEPformer" or algorithm=="CAIFormerNew":
+    if algorithm == "SSVEPformer":
         optimizer = torch.optim.SGD(net.parameters(), lr=lr, weight_decay=wd, momentum=0.9)
     else:
         optimizer = torch.optim.Adam(net.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=wd)
