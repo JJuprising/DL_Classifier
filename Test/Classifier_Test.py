@@ -19,7 +19,7 @@ def run():
     print(f"{'*' * 20} Current Algorithm usage: {algorithm} {'*' * 20}")
 
     '''Parameters for training procedure'''
-    UD = config["train_param"]['UD']
+    UD = config["train_param"]['UD'] 
     ratio = config["train_param"]['ratio']
     if ratio == 1 or ratio == 3:
         Kf = 5
