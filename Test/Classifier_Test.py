@@ -29,7 +29,13 @@ def run():
         Kf = 2
 
     Kf = 1
-
+    # 训练集占比
+    if ratio == 1:
+        train_radio = 0.8
+    elif ratio == 2:
+        train_radio = 0.5
+    elif ratio == 3:
+        train_radio = 0.2
     '''Parameters for ssvep data'''
     if classes == 12:
         ws = config["data_param_12"]["ws"]
