@@ -22,7 +22,7 @@ def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criter
     print(dir_path)
     os.makedirs(dir_path, exist_ok=True)
     # 打开csv文件
-    csv_path = f'../Result/classes_{config["classes"]}/{algorithm}/subject_{subject}_log.csv'
+    csv_path = f'../Result/classes_{config["classes"]}/{algorithm}/subject_{subject}_{config["data_param_12"]["ws"]}.csv'
     with open(csv_path, 'w', newline='') as csvfile:
         fieldnames = ['subject', 'epoch', 'val_acc']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)

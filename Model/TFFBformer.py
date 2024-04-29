@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+# @Time: 2024/4/29 22:53
+# @Author : Young
+# @File : TFFBformer.py
+# @Software: PyCharm
 import numpy as np
 import torch
 from fightingcv_attention.attention.CBAM import CBAMBlock
@@ -174,7 +179,7 @@ class SSVEPformer(nn.Module):
         x = self.transformer(x)
         return self.mlp_head(x)
 
-class TFformer(Module):
+class TFFBformer(Module):
     '''
     T: 时间序列长度
     '''
