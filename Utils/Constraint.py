@@ -4,6 +4,7 @@
 import torch
 from torch import nn
 
+# 自定义卷积层通过对卷积核权重进行 L2 范数约束，实现了权重正则化
 class Conv2dWithConstraint(nn.Conv2d):
     def __init__(self, *args, max_norm=1, **kwargs):
         self.max_norm = max_norm

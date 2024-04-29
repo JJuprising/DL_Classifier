@@ -197,16 +197,16 @@ class iTransformerFFT(Module):
         #x_fft = self.fft_mlp_in(x_fft)#(30,64,256)
         #x, fft_ps = pack([x_fft, x], 'b * d')
         #(30,128,256)
-        x_fft = complex_spectrum_features(x, FFT_PARAMS=[Fs, ws])#(30,1,8,220)
+        x_fft = complex_spectrum_features(x, FFT_PARAMS=[Fs, ws])# x:(30,1,8,256) x_fft:(30, 1, 8, 220)
 
         #时间序列
         x = self.conv_layers(x)#（30，220，1，8）
         x = x.permute(0,2,3,1)
 
         x = torch.Tensor(x.squeeze(1))
-        x_fft =torch.Tensor(x_fft.squeeze(1))
+        x_fft =torch.Tensor(x_fft.squeeze(1)) # (30, 8, 220) 批次大小，通道数，频率序列
 
-        x = torch.cat([x_fft, x], dim=1)
+        x = torch.cat([x_fft, x], dim=1) # (30, 16, 220)
 
         #x, fft_ps = pack([x_fft, x], 'b * d')
 
@@ -220,8 +220,8 @@ class iTransformerFFT(Module):
         #x = self.conv1d(x)
 
         #x = self.pool(x)
-        x = x.mean(dim=1)
-        x = self.fc(x)
+        x = x.mean(dim=1) # (30, 220)
+        x = self.fc(x) # (30, 12)
 
         #x = self.mlp(x)
         return x

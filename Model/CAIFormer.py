@@ -174,10 +174,10 @@ class ESNet(nn.Module):
         out = self.CBAM(out)
         out = self.CBAM(out)
         out = self.CBAM(out)
-        out  = out.squeeze(2)
+        out  = out.squeeze(2) # (30, 16, 1, 254)
         out = self.transformer(out)
 
-        out = out.mean(dim=1)
+        out = out.mean(dim=1) # (30, 1, 8, 256)
         out = self.mlp_head(out)
 
         return out
