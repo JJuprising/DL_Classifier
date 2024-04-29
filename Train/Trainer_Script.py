@@ -8,7 +8,7 @@ from torch import nn
 from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer, FBSSVEPformer
 
 from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CNNAttentionGRU, \
-    CNNAttentionMLP, CACAM, CACAMNew, PSDCNN, CAIFormerNew
+    CNNAttentionMLP, CACAM, CACAMNew, PSDCNN, CAIFormerNew, TFformer
 
 from Utils import Constraint, LossFunction, Script
 from etc.global_config import config
@@ -210,6 +210,12 @@ def build_model(devices):
         net = FBSSVEPformer.FB_SSVEPformer(depth=2, attention_kernal_length=31, chs_num=Nc, class_num=Nf,
                                       dropout=0.5, num_subbands=3)
         net.apply(Constraint.initialize_weights)
+
+    elif algorithm == "TFformer":
+        net = TFformer.TFformer(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,
+                                T=Nt)
+        net = Constraint.Spectral_Normalization(net)
+
     elif algorithm == "CAIFormer":
         net = CAIFormer.ESNet(Nc, Nt, Nf)
         net = Constraint.Spectral_Normalization(net)

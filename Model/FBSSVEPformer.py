@@ -137,9 +137,10 @@ class FB_SSVEPformer(nn.Module):
         self.fusion_layer = nn.Conv1d(3, 1, kernel_size=1)
 
     def forward(self, x):
+        # x:(30, 8, 3, 560)
         # 每个子网络处理对应的子带数据
         subband_outputs = [
-            subnetwork(x[:, :, i, :])
+            subnetwork(x[:, :, i, :]) # (30, 12)
             for i, subnetwork in enumerate(self.subnetworks)
         ]
         # 将子网络输出进行融合
