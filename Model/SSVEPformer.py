@@ -110,6 +110,6 @@ class SSVEPformer(nn.Module):
                 nn.init.normal_(m.weight, mean=0.0, std=0.01)
 
     def forward(self, x):
-        x = self.to_patch_embedding(x)
+        x = self.to_patch_embedding(x) # x:(30, 8, 560)
         x = self.transformer(x)
         return self.mlp_head(x)

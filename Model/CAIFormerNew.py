@@ -39,17 +39,18 @@ class Attention(nn.Module):
         ) if project_out else nn.Identity()
 
     def forward(self, x):
-        qkv = self.to_qkv(x).chunk(3, dim=-1)
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv)
+        qkv = self.to_qkv(x).chunk(3, dim=-1) # x:(30, 16, 220) qkv:(tuple:3)[0:(30, 16, 64),1:(30, 16, 64),2:(30, 16, 64)]
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv) # q:(30, 8, 16, 8) (batch_size, channels, heads * dim_head)
 
-        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
+        # 点乘操作
+        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale # dots:(30, 8, 16, 16)
 
-        attn = self.attend(dots)
+        attn = self.attend(dots)  # attn:(30, 8, 16, 16)
         attn = self.dropout(attn)
 
-        out = torch.matmul(attn, v)
-        out = rearrange(out, 'b h n d -> b n (h d)')
-        return self.to_out(out)
+        out = torch.matmul(attn, v) # out:(30, 8, 16, 8)
+        out = rearrange(out, 'b h n d -> b n (h d)') # out:(30, 16, 64)
+        return self.to_out(out) # out:(30, 16, 220)
 # feedforward
 from Utils.Constraint import Conv2dWithConstraint
 
@@ -158,19 +159,22 @@ class iTransformerFFT(Module):
 
 
         net = []
-        net.append(nn.Conv2d(1, self.F1, (1, self.kernelength1), bias=False, padding="same"))
-        net.append(nn.BatchNorm2d(self.F1, momentum=0.01, affine=True, eps=1e-3))
-        net.append(Conv2dWithConstraint(self.F1, self.F1 * self.D, (chs_num ,1), max_norm=1,groups=self.F1, bias=False))
-        net.append(nn.BatchNorm2d(self.D * self.F1, momentum=0.01, affine=True, eps=1e-3))
-        net.append(nn.AvgPool2d(kernel_size=(1, 4), stride=(1, 4)))
+        # 这一段代码的主要目的应该是为了要实现数据集维度的转换
+        # 输入维度的8和输出维度的8经过这段处理后含义已经不一样了
+        # 结合后面的代码来看，这会误解8的含义，使得神经网络的含义难以解释
+        net.append(nn.Conv2d(1, self.F1, (1, self.kernelength1), bias=False, padding="same"))# input(30, 1, 8, 256) output(30, F1, 8, 256)
+        net.append(nn.BatchNorm2d(self.F1, momentum=0.01, affine=True, eps=1e-3)) # (30, F1, 8, 256)
+        net.append(Conv2dWithConstraint(self.F1, self.F1 * self.D, (chs_num ,1), max_norm=1,groups=self.F1, bias=False)) # [30, F1*D, 1, 256)
+        net.append(nn.BatchNorm2d(self.D * self.F1, momentum=0.01, affine=True, eps=1e-3)) # [30, F1*D, 1, 256)
+        net.append(nn.AvgPool2d(kernel_size=(1, 4), stride=(1, 4))) # (30, F1*D, 1, 64)
         #pointwiseConv2
         net.append(nn.Conv2d(self.F1 * self.D, self.F1 * self.D, (1, self.kernelength2),
                                         groups=self.F1 * self.D,
-                                        bias=False, padding="same"))
+                                        bias=False, padding="same")) # # (30, F1*D, 1, 64)
         #depthwiseConv
-        net.append(nn.Conv2d(self.F1 * self.D, self.F2, (1, 1), bias=False))
-        net.append(nn.BatchNorm2d(self.F2, momentum=0.01, affine=True, eps=1e-3))
-        net.append(nn.AvgPool2d(kernel_size=(1, 8), stride=(1, 8)))
+        net.append(nn.Conv2d(self.F1 * self.D, self.F2, (1, 1), bias=False)) # (30, F2, 1, 64)
+        net.append(nn.BatchNorm2d(self.F2, momentum=0.01, affine=True, eps=1e-3)) # (30, F2, 1, 64)
+        net.append(nn.AvgPool2d(kernel_size=(1, 8), stride=(1, 8))) # (30, F2, 1, 8)
         self.conv_layers = nn.Sequential(*net)
 
 
