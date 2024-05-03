@@ -20,6 +20,7 @@ Fs = config["data_param_12"]["Fs"]
 from Utils import Constraint
 
 
+
 #
 class Attention(nn.Module):
     def __init__(self, dim, heads=8, dim_head=64, dropout=0.):
@@ -45,16 +46,21 @@ class Attention(nn.Module):
                                    dim=-1)  # x:(30, 16, 220) qkv:(tuple:3)[0:(30, 16, 64),1:(30, 16, 64),2:(30, 16, 64)]
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads),
                       qkv)  # q:(30, 8, 16, 8) (batch_size, channels, heads * dim_head)
+        qkv = self.to_qkv(x).chunk(3,
+                                   dim=-1)  # x:(30, 16, 220) qkv:(tuple:3)[0:(30, 16, 64),1:(30, 16, 64),2:(30, 16, 64)]
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads),
+                      qkv)  # q:(30, 8, 16, 8) (batch_size, channels, heads * dim_head)
 
         # 点乘操作
-        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale  # dots:(30, 8, 16, 16)
+        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale   # dots:(30, 8, 16, 16)
 
         attn = self.attend(dots)  # attn:(30, 8, 16, 16)
         attn = self.dropout(attn)
 
-        out = torch.matmul(attn, v)  # out:(30, 8, 16, 8)
-        out = rearrange(out, 'b h n d -> b n (h d)')  # out:(30, 16, 64)
-        return self.to_out(out)  # out:(30, 16, 220)
+        out = torch.matmul(attn, v)   # out:(30, 8, 16, 8)
+        out = rearrange(out, 'b h n d -> b n (h d)')   # out:(30, 16, 64)
+        return self.to_out(out)   # out:(30, 16, 220)
+
 
 
 class FeedForward(nn.Module):
@@ -70,6 +76,8 @@ class FeedForward(nn.Module):
 
     def forward(self, x):
         return self.net(x)
+
+
 
 
 def complex_spectrum_features(segmented_data, FFT_PARAMS):
@@ -110,6 +118,7 @@ class convAttention(nn.Module):
         return out
 
 
+
 class freqFeedForward(nn.Module):
     def __init__(self, token_length, dropout):
         super().__init__()
@@ -123,6 +132,7 @@ class freqFeedForward(nn.Module):
         return self.net(x)
 
 
+
 class PreNorm(nn.Module):
     def __init__(self, token_dim, fn):
         super().__init__()
@@ -131,6 +141,7 @@ class PreNorm(nn.Module):
 
     def forward(self, x, **kwargs):
         return self.fn(self.norm(x), **kwargs)
+
 
 
 class convTransformer(nn.Module):
@@ -148,6 +159,7 @@ class convTransformer(nn.Module):
             x = attn(x) + x
             x = ff(x) + x
         return x
+
 
 
 class SSVEPformer(nn.Module):
@@ -186,12 +198,14 @@ class SSVEPformer(nn.Module):
         return self.mlp_head(x)
 
 
+
 class TFformer(Module):
     '''
     T: 时间序列长度
     '''
 
-    def __init__(self, T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead=8, dim_fhead=8, dim=220):
+
+    def __init__(self, T, depth, heads,  chs_num, class_num, tt_dropout,  ff_dropout,  dim_thead=8,  dim_fhead=8,  dim=220):
         super().__init__()
         # 时间序列的网络层
         self.attentionEncoder = ModuleList([])
@@ -206,8 +220,8 @@ class TFformer(Module):
             self.attentionEncoder.append(ModuleList([
                 # ECAAttention(kernel_size=3),
                 # SimplifiedScaledDotProductAttention(d_model=dim, h=8),
-                Attention(dim, dim_head=dim_thead, heads=heads, dropout=tt_dropout),
-                # Attention(token_num=self.F[0], token_length=self.F[1]),
+                Attention(dim, dim_head = dim_thead, heads = heads, dropout = tt_dropout),
+                #Attention(token_num=self.F[0], token_length=self.F[1]),
                 nn.LayerNorm(dim),
                 FeedForward(dim, hidden_dim=dim_fhead, dropout=ff_dropout),
                 nn.LayerNorm(dim)
@@ -280,11 +294,15 @@ class TFformer(Module):
         x_fft = x_fft.to(devices)
         x_fft = self.subnetwork(x_fft)  # (30, 12)
 
-        outputs = []
-        outputs.append(x_t)
-        outputs.append(x_fft)
-        outputs = torch.stack(outputs, dim=2)  # (30, 12, 2)
-        outputs = torch.transpose(outputs, 1, 2)  # (30, 2, 12)
-        # fused_output = self.fusion_layer(outputs) # (30, 1, 12)
-        fused_output = torch.mean(outputs, axis=1)
-        return fused_output.squeeze(dim=1)
+        # 计算 x_t 和 x_fft 在第二维上的大小
+
+        weight_x_t = 0.4
+        weight_x_fft = 0.6
+
+        # 分别应用权重
+        weighted_x_t = torch.mul(x_t, weight_x_t)
+        weighted_x_fft = torch.mul(x_fft, weight_x_fft)
+
+        # 加权求和
+        fused_output = weighted_x_t + weighted_x_fft
+        return fused_output

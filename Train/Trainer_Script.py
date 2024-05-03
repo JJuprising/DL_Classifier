@@ -38,6 +38,8 @@ def data_preprocess(EEGData_Train, EEGData_Test):
 
 
     '''Loading Training Data'''
+
+
     EEGData_Train, EEGLabel_Train = EEGData_Train[:]
     EEGData_Train = EEGData_Train[:, :, :, :int(Fs * ws)]
 
@@ -101,7 +103,7 @@ def data_preprocess(EEGData_Train, EEGData_Test):
 
     '''Loading Testing Data'''
     EEGData_Test, EEGLabel_Test = EEGData_Test[:]
-    EEGData_Test = EEGData_Test[:, :, :, :int(Fs * ws)]
+    EEGData_Test = EEGData_Test[:, :,:, int(Fs* last_time) :int(Fs * ws + Fs*last_time)]
 
     if algorithm == "ConvCA":
         EEGData_Test = torch.swapaxes(EEGData_Test, axis0=2, axis1=3)  # (Nh, 1, Nt, Nc)
