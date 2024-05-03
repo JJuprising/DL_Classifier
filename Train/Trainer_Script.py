@@ -8,7 +8,7 @@ from torch import nn
 from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer, FBSSVEPformer
 
 from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CNNAttentionGRU, \
-    CNNAttentionMLP, CACAM, CACAMNew, PSDCNN, CAIFormerNew, TFformer
+    CNNAttentionMLP, CACAM, CACAMNew, PSDCNN, CAIFormerNew, TFformer, iTransformer, KANformer
 
 from Utils import Constraint, LossFunction, Script
 from etc.global_config import config
@@ -25,25 +25,21 @@ def data_preprocess(EEGData_Train, EEGData_Test):
     '''
     algorithm = config['algorithm']
     classes=config['classes']
-    last_time=0 # 各数据中的延迟时间
     if classes==12:
         ws = config["data_param_12"]["ws"]
         Fs = config["data_param_12"]["Fs"]
         Nf = config["data_param_12"]["Nf"]
-        last_time=0.135
     elif classes==40:
         ws = config["data_param_40"]["ws"]
         Fs = config["data_param_40"]["Fs"]
         Nf = config["data_param_40"]["Nf"]
-        last_time=0.64
 
     bz = config[algorithm]["bz"]
 
 
     '''Loading Training Data'''
     EEGData_Train, EEGLabel_Train = EEGData_Train[:]
-
-    EEGData_Train = EEGData_Train[:, :, :,int(Fs* last_time) :int(Fs * ws + Fs*last_time)]
+    EEGData_Train = EEGData_Train[:, :, :, :int(Fs * ws)]
 
     if algorithm == "ConvCA":
         EEGData_Train = torch.swapaxes(EEGData_Train, axis0=2, axis1=3) # (Nh, 1, Nt, Nc)
@@ -64,6 +60,11 @@ def data_preprocess(EEGData_Train, EEGData_Test):
 
         elif algorithm == "SSVEPformer":
             EEGData_Train = SSVEPformer.complex_spectrum_features(EEGData_Train.numpy(), FFT_PARAMS=[Fs, ws])
+            EEGData_Train = torch.from_numpy(EEGData_Train)
+            EEGData_Train = EEGData_Train.squeeze(1)
+
+        elif algorithm == "KANformer":
+            EEGData_Train = KANformer.complex_spectrum_features(EEGData_Train.numpy(), FFT_PARAMS=[Fs, ws])
             EEGData_Train = torch.from_numpy(EEGData_Train)
             EEGData_Train = EEGData_Train.squeeze(1)
         # elif algorithm == "VIT":
@@ -121,6 +122,11 @@ def data_preprocess(EEGData_Train, EEGData_Test):
 
         elif algorithm == "SSVEPformer":
             EEGData_Test = SSVEPformer.complex_spectrum_features(EEGData_Test.numpy(), FFT_PARAMS=[Fs, ws])
+            EEGData_Test = torch.from_numpy(EEGData_Test)
+            EEGData_Test = EEGData_Test.squeeze(1)
+
+        elif algorithm == "KANformer":
+            EEGData_Test = KANformer.complex_spectrum_features(EEGData_Test.numpy(), FFT_PARAMS=[Fs, ws])
             EEGData_Test = torch.from_numpy(EEGData_Test)
             EEGData_Test = EEGData_Test.squeeze(1)
 
@@ -210,6 +216,11 @@ def build_model(devices):
                                       dropout=0.5)
         net.apply(Constraint.initialize_weights)
 
+    elif algorithm == "KANformer":
+        net = KANformer.KANformer(depth=2, attention_kernal_length=31, chs_num=Nc, class_num=Nf,
+                                      dropout=0.5, width=config['KANformer']['width'])
+        net = Constraint.Spectral_Normalization(net)
+
     elif algorithm == "FBSSVEPformer":
         net = FBSSVEPformer.FB_SSVEPformer(depth=2, attention_kernal_length=31, chs_num=Nc, class_num=Nf,
                                       dropout=0.5, num_subbands=3)
@@ -217,6 +228,11 @@ def build_model(devices):
 
     elif algorithm == "TFformer":
         net = TFformer.TFformer(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,
+                                T=Nt)
+        net = Constraint.Spectral_Normalization(net)
+
+    elif algorithm == "iTransformer":
+        net = iTransformer.iTransformer(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,
                                 T=Nt)
         net = Constraint.Spectral_Normalization(net)
 

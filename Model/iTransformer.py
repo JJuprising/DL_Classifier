@@ -13,7 +13,6 @@ from torch.nn import init
 
 from etc.global_config import config
 
-devices = "cuda" if torch.cuda.is_available() else "cpu"
 ws = config["data_param_12"]["ws"]
 Fs = config["data_param_12"]["Fs"]
 # 自注意力
@@ -186,22 +185,17 @@ class SSVEPformer(nn.Module):
         return self.mlp_head(x)
 
 
-class TFformer(Module):
+class iTransformer(Module):
     '''
     T: 时间序列长度
     '''
 
-    def __init__(self, T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead=8, dim_fhead=8, dim=220):
+    def __init__(self, T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead=8, dim_fhead=8, dim=560):
         super().__init__()
         # 时间序列的网络层
         self.attentionEncoder = ModuleList([])
-        self.fc = nn.Linear(256, class_num)
-        self.Linear = nn.Linear(T, dim)
-        self.dropout_level = 0.5
-        self.F = [chs_num * 2] + [chs_num * 4]
-        self.K = 10
-        self.S = 2
-        self.cbam_block1 = CBAMBlock(channel=self.F[1], reduction=16, kernel_size=7)
+        self.fc = nn.Linear(560, class_num)
+        self.Linear = nn.Linear(560, dim)
         for _ in range(depth):
             self.attentionEncoder.append(ModuleList([
                 # ECAAttention(kernel_size=3),
@@ -212,12 +206,6 @@ class TFformer(Module):
                 FeedForward(dim, hidden_dim=dim_fhead, dropout=ff_dropout),
                 nn.LayerNorm(dim)
             ]))
-        net = []
-        net.append(self.spatial_block(chs_num, self.dropout_level))
-        net.append(self.enhanced_block(self.F[0], self.F[1], self.dropout_level,
-                                       1, 1))
-
-        self.conv_layers = nn.Sequential(*net)
 
         # SSVEPformer
         self.subnetwork = SSVEPformer(depth=depth, attention_kernal_length=31, chs_num=chs_num, class_num=class_num,
@@ -226,65 +214,25 @@ class TFformer(Module):
         # 结果融合层
         self.fusion_layer = nn.Conv1d(2, 1, kernel_size=1)
 
-    def spatial_block(self, nChan, dropout_level):
-        '''
-           Spatial filter block,assign different weight to different channels and fuse them
-        '''
-        block = []
-        block.append(Constraint.Conv2dWithConstraint(in_channels=1, out_channels=nChan * 2, kernel_size=(nChan, 1),
-                                                     max_norm=1.0))
-        block.append(nn.BatchNorm2d(num_features=nChan * 2))
-        block.append(nn.PReLU())
-        block.append(nn.Dropout(dropout_level))
-        layer = nn.Sequential(*block)
-        return layer
-
-    def enhanced_block(self, in_channels, out_channels, dropout_level, kernel_size, stride):
-        '''
-           Enhanced structure block,build a CNN block to absorb data and output its stable feature
-        '''
-        block = []
-        block.append(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(1, kernel_size),
-                               stride=(1, stride)))
-        block.append(nn.BatchNorm2d(num_features=out_channels))
-        block.append(nn.PReLU())
-        block.append(nn.Dropout(dropout_level))
-        layer = nn.Sequential(*block)
-        return layer
-
     # 有两个子网络，一个子网络处理时间序列，一个子网络处理频谱序列
     def forward(self, x):
+
         # 处理时间序列
         # 通过线性层对序列进行裁剪
+        x_t = complex_spectrum_features(x, FFT_PARAMS=[Fs, ws])
+        x_t = torch.from_numpy(x_t)
+        x_t = x_t.to(x.device)
         # x_t = self.Linear(x) # (30, 1, 8, 220)
-        # x_t = torch.Tensor(x_t.squeeze(1))
-        #
-        # for attn, attn_post_norm, ff, ff_post_norm in self.attentionEncoder:
-        #     x_t = attn(x_t) + x_t
-        #     x_t = attn_post_norm(x_t)
-        #     x_t = ff(x_t) + x_t
-        #     x_t = ff_post_norm(x_t)
+        x_t = torch.Tensor(x_t.squeeze(1))
+        x_t = x_t.float()
 
-        x_t = self.conv_layers(x)
-        x_t = x_t.squeeze(2)
+        for attn, attn_post_norm, ff, ff_post_norm in self.attentionEncoder:
+            x_t = attn(x_t) + x_t
+            x_t = attn_post_norm(x_t)
+            x_t = ff(x_t) + x_t
+            x_t = ff_post_norm(x_t)
 
         x_t = x_t.mean(dim=1)  # (30, 220)
-
         x_t = self.fc(x_t)  # (30, 12)
 
-        # 处理频谱序列
-        x_fft = complex_spectrum_features(x, FFT_PARAMS=[Fs, ws])  # x:(30,1,8,256) x_fft:(30, 1, 8, 560)
-
-        # device = torch.device("cuda:0")
-        x_fft = torch.tensor(x_fft.squeeze(1), dtype=torch.float)
-        x_fft = x_fft.to(devices)
-        x_fft = self.subnetwork(x_fft)  # (30, 12)
-
-        outputs = []
-        outputs.append(x_t)
-        outputs.append(x_fft)
-        outputs = torch.stack(outputs, dim=2)  # (30, 12, 2)
-        outputs = torch.transpose(outputs, 1, 2)  # (30, 2, 12)
-        # fused_output = self.fusion_layer(outputs) # (30, 1, 12)
-        fused_output = torch.mean(outputs, axis=1)
-        return fused_output.squeeze(dim=1)
+        return x_t

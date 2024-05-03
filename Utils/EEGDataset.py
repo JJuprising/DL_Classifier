@@ -53,7 +53,7 @@ class getSSVEP12Inter(Dataset):
         eeg_data = samples.swapaxes(1, 2)
         eeg_data = torch.from_numpy(eeg_data.swapaxes(0, 1))
         eeg_data = eeg_data.reshape(-1, 1, self.Nc, self.Nt)
-        print(eeg_data.shape)
+        # print(eeg_data.shape)
         return eeg_data
 
     # 所有数据拼起来
@@ -71,7 +71,7 @@ class getSSVEP12Inter(Dataset):
         # extract numpy from dict
         labels = labelfile['Label']
         label_data = torch.from_numpy(labels)
-        print(label_data.shape)
+        # print(label_data.shape)
         return label_data - 1
 
     def read_EEGLabel(self):
@@ -143,16 +143,16 @@ class getSSVEP12Intra(Dataset):
         eeg_data = samples.swapaxes(1, 2)  # (8, 1024, 180) -> (8, 180, 1024)
         eeg_data = torch.from_numpy(eeg_data.swapaxes(0, 1))  # (8, 180, 1024) -> (180, 8, 1024)
         eeg_data = eeg_data.reshape(-1, 1, self.Nc, self.Nt)  # (180, 1, 8, 1024)
-        print(eeg_data.shape)
+        # print(eeg_data.shape)
         return eeg_data
 
     # get the single label data
     def get_DataLabel(self):
         labelfile = scipy.io.loadmat(f'../data/Dial/LabSub_{self.subject}.mat')
         labels = labelfile['Label']
-        print(labels)
+        # print(labels)
         label_data = torch.from_numpy(labels)
-        print(label_data.shape)  # torch.Size([180, 1])
+        # print(label_data.shape)  # torch.Size([180, 1])
         return label_data - 1
 
 

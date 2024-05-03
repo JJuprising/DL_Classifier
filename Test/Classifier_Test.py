@@ -16,6 +16,7 @@ def run():
     # 1、Define parameters of eeg
     algorithm = config['algorithm']
     classes = config['classes']
+
     print(f"{'*' * 20} Current Algorithm usage: {algorithm} Using Dataset {classes} classes {'*' * 20}")
     train_radio = 0.8
     '''Parameters for training procedure'''
@@ -52,9 +53,9 @@ def run():
 
     # 2、Start Training
     final_acc_list = []
-    for fold_num in range(Kf):
+    for i in range(1):
         final_test_acc_list = []
-        print(f"Training for K_Fold {fold_num + 1}")
+        # config["data_param_12"]["ws"] = 2.0
         for testSubject in range(1, Ns + 1):
             # **************************************** #
             '''12-class SSVEP Dataset'''
@@ -104,11 +105,14 @@ def run():
             final_test_acc_list.append(test_acc)
             print(f"Subject {testSubject} Test Accuracy: {test_acc:.3f}")
         final_acc_list.append(final_test_acc_list)
+        if algorithm == 'KANformer':
+            algorithm = algorithm + '/'+str(config['KANformer']['width'])
+        Ploter.plot_save_Result(final_acc_list, model_name=algorithm, dataset='classes_12', UD=UD, ratio=ratio,
+                                win_size=str(ws), text=True)
 
     # print(final_acc_list)
     # 3、Plot Result
-    Ploter.plot_save_Result(final_acc_list, model_name=algorithm, dataset='DatasetA', UD=UD, ratio=ratio,
-                            win_size=str(ws), text=True)
+
 
 
 if __name__ == '__main__':
