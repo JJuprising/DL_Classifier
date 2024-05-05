@@ -8,7 +8,7 @@ from torch import nn
 from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer, FBSSVEPformer
 
 from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CNNAttentionGRU, \
-    CNNAttentionMLP, CACAM, CACAMNew, PSDCNN, CAIFormerNew, TFformer, iTransformer, KANformer
+    CNNAttentionMLP, CACAM, CACAMNew, PSDCNN, CAIFormerNew, TFformer, iTransformer, KANformer, TFFBformer
 
 from Utils import Constraint, LossFunction, Script
 from etc.global_config import config
@@ -103,7 +103,7 @@ def data_preprocess(EEGData_Train, EEGData_Test):
 
     '''Loading Testing Data'''
     EEGData_Test, EEGLabel_Test = EEGData_Test[:]
-    EEGData_Test = EEGData_Test[:, :,:, int(Fs* last_time) :int(Fs * ws + Fs*last_time)]
+    EEGData_Test = EEGData_Test[:, :,:, :int(Fs * ws)]
 
     if algorithm == "ConvCA":
         EEGData_Test = torch.swapaxes(EEGData_Test, axis0=2, axis1=3)  # (Nh, 1, Nt, Nc)
@@ -229,6 +229,11 @@ def build_model(devices):
         net.apply(Constraint.initialize_weights)
 
     elif algorithm == "TFformer":
+        net = TFformer.TFformer(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,
+                                T=Nt)
+        net = Constraint.Spectral_Normalization(net)
+
+    elif algorithm == "TFFBformer":
         net = TFformer.TFformer(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,
                                 T=Nt)
         net = Constraint.Spectral_Normalization(net)
