@@ -25,23 +25,26 @@ def data_preprocess(EEGData_Train, EEGData_Test):
     '''
     algorithm = config['algorithm']
     classes=config['classes']
-    if classes==12:
+
+    last_time = 0  # 各数据中的延迟时间
+    if classes == 12:
         ws = config["data_param_12"]["ws"]
         Fs = config["data_param_12"]["Fs"]
         Nf = config["data_param_12"]["Nf"]
-    elif classes==40:
+        last_time = 0.135
+    elif classes == 40:
         ws = config["data_param_40"]["ws"]
         Fs = config["data_param_40"]["Fs"]
         Nf = config["data_param_40"]["Nf"]
+        last_time = 0.64
 
     bz = config[algorithm]["bz"]
-
 
     '''Loading Training Data'''
 
 
     EEGData_Train, EEGLabel_Train = EEGData_Train[:]
-    EEGData_Train = EEGData_Train[:, :, :, :int(Fs * ws)]
+    EEGData_Train = EEGData_Train[:, :, :, int(Fs * last_time):int(Fs * ws + Fs * last_time)]
 
     if algorithm == "ConvCA":
         EEGData_Train = torch.swapaxes(EEGData_Train, axis0=2, axis1=3) # (Nh, 1, Nt, Nc)
