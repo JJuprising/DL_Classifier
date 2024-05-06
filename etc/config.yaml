@@ -1,4 +1,4 @@
-algorithm: TFFBformer
+algorithm: SSVEPformer2
 classes: 12 # 哪个分类数据 12-Dial 40-tsinghua
 
 # Parameters for training procedure
@@ -67,14 +67,28 @@ SSVEPNet:
   stimulus_type: 4            # 4-class or 12-class
 
 SSVEPformer:
-  epochs: 500                  # number of epochs
+  epochs: 40                  # number of epochs
+  bz: 30                     # batch size
+  lr: 0.001                       # learning rate
+  wd: 0.0001                   # weight decay
+  lr_jitter: false             # learning rate scheduler
+
+SSVEPformer2:
+  epochs: 40                  # number of epochs
+  bz: 30                     # batch size
+  lr: 0.001                       # learning rate
+  wd: 0.0001                   # weight decay
+  lr_jitter: false             # learning rate scheduler
+
+SSVEPformer3:
+  epochs: 40                  # number of epochs
   bz: 30                     # batch size
   lr: 0.001                       # learning rate
   wd: 0.0001                   # weight decay
   lr_jitter: false             # learning rate scheduler
 
 KANformer:
-  width: [3,4,12]
+  width: [48, 30, 12]
   epochs: 20               # number of epochs
   bz: 30                     # batch size
   lr: 0.001                       # learning rate

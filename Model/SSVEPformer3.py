@@ -11,7 +11,6 @@ import argparse
 import sys
 
 from Utils import Constraint
-from fightingcv_attention.attention.CBAM import CBAMBlock
 
 
 def complex_spectrum_features(segmented_data, FFT_PARAMS):
@@ -85,7 +84,7 @@ class Transformer(nn.Module):
         return x
 
 
-class SSVEPformer2(nn.Module):
+class SSVEPformer3(nn.Module):
     # 空间滤波器模块，为每个通道分配不同的权重并融合它们
     def spatial_block(self, nChan, dropout_level):
         '''
@@ -113,7 +112,6 @@ class SSVEPformer2(nn.Module):
         block.append(nn.Dropout(dropout_level))
         layer = nn.Sequential(*block)
         return layer
-
     def __init__(self, depth, attention_kernal_length, chs_num, class_num, dropout):
         super().__init__()
         # token_num = chs_num * 2
@@ -122,13 +120,12 @@ class SSVEPformer2(nn.Module):
 
         self.K = 10
         self.S = 2
-        # output_dim = int((token_dim  - 1 * (self.K - 1) - 1) / self.S + 1)
-        output_dim = token_dim
+        output_dim = int((token_dim  - 1 * (self.K - 1) - 1) / self.S + 1)
 
         net = []
         net.append(self.spatial_block(chs_num, dropout))  # （30， 16， 1， 256）
-        # net.append(self.enhanced_block(self.F[0], self.F[1], dropout,
-        #                                self.K, self.S))  # (30, 32, 1, 124)
+        net.append(self.enhanced_block(self.F[1], self.F[1], dropout,
+                                       self.K, self.S))  # (30, 32, 1, 124)
 
         self.conv_layers = nn.Sequential(*net)
         self.to_patch_embedding = nn.Sequential(
@@ -139,8 +136,6 @@ class SSVEPformer2(nn.Module):
         )
 
         self.transformer = Transformer(depth, self.F[1], output_dim, attention_kernal_length, dropout)
-
-        self.CBAM = CBAMBlock(channel=self.F[1], reduction=1, kernel_size=19)
 
         self.mlp_head = nn.Sequential(
             nn.Flatten(),
@@ -158,11 +153,8 @@ class SSVEPformer2(nn.Module):
 
     def forward(self, x):
         # input(30, 8, 560)
-        x = self.conv_layers(x)  # x:(30, 32, 1, 124)
+        x = self.conv_layers(x) # x:(30, 32, 1, 124)
         x = x.squeeze(2)  # (30, 32, 124)
         # x = self.to_patch_embedding(x) # x:(30, 32, 124)
-        x = self.transformer(x)  # x:(30, 32, 124)
-        # 在维度 2 (从 0 开始索引) 插入一个新的维度
-        x = x.unsqueeze(2)
-        x = self.CBAM(x)
+        x = self.transformer(x) # x:(30, 32, 124)
         return self.mlp_head(x)
