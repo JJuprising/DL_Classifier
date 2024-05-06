@@ -83,12 +83,18 @@ data = scipy.io.loadmat(file)
 type(data)
 # print(data.keys())
 # print(data["data"].shape)
-_label = np.arange(0, data["data"].shape[2], 1)
+_label = np.arange(0, data['data'].shape[2], 1)
 print(_label)
-data=data["data"]
 # print(data.shape)
-data = data.transpose((3,2,0,1))
+data=data["data"]
+chnls = [48, 54, 55, 56, 57, 58, 61, 62, 63]
+data = data[chnls, :, :, :]
+data_ori=data
+# print(data.shape)
+data = data.transpose((3,2,0,1)) #
+
 data_stack = [data[i:i+1,:,:,:].squeeze(0) for i in range(data.shape[0])]
+print(len(data_stack))
 data = np.vstack(data_stack)
 # 使用列表推导式来构建数组列表
 label_array = [[i] for i in np.tile(np.arange(40), 6)]  # 从 0 到 39 循环 6 次，每个元素是单个数组
