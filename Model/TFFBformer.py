@@ -1,4 +1,4 @@
-import signal
+from scipy import signal
 
 import numpy as np
 import torch
@@ -27,8 +27,15 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, order=4):
     low = lowcut / nyq
     high = highcut / nyq
     b, a = signal.butter(order, [low, high], btype='band')
-    y = signal.lfilter(b, a, data)
+    x = data.cpu().numpy()  # 先将张量复制到 CPU，然后再转换为 NumPy 数组
+    # 应用滤波器
+    y = signal.lfilter(b, a, x)
+
+    # 将 y 转换回 PyTorch 张量
+    y = torch.from_numpy(y)
     return y
+
+
 #
 class Attention(nn.Module):
     def __init__(self, dim, heads=8, dim_head=64, dropout=0.):
@@ -60,15 +67,14 @@ class Attention(nn.Module):
                       qkv)  # q:(30, 8, 16, 8) (batch_size, channels, heads * dim_head)
 
         # 点乘操作
-        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale   # dots:(30, 8, 16, 16)
+        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale  # dots:(30, 8, 16, 16)
 
         attn = self.attend(dots)  # attn:(30, 8, 16, 16)
         attn = self.dropout(attn)
 
-        out = torch.matmul(attn, v)   # out:(30, 8, 16, 8)
-        out = rearrange(out, 'b h n d -> b n (h d)')   # out:(30, 16, 64)
-        return self.to_out(out)   # out:(30, 16, 220)
-
+        out = torch.matmul(attn, v)  # out:(30, 8, 16, 8)
+        out = rearrange(out, 'b h n d -> b n (h d)')  # out:(30, 16, 64)
+        return self.to_out(out)  # out:(30, 16, 220)
 
 
 class FeedForward(nn.Module):
@@ -84,8 +90,6 @@ class FeedForward(nn.Module):
 
     def forward(self, x):
         return self.net(x)
-
-
 
 
 def complex_spectrum_features(segmented_data, FFT_PARAMS):
@@ -126,7 +130,6 @@ class convAttention(nn.Module):
         return out
 
 
-
 class freqFeedForward(nn.Module):
     def __init__(self, token_length, dropout):
         super().__init__()
@@ -140,7 +143,6 @@ class freqFeedForward(nn.Module):
         return self.net(x)
 
 
-
 class PreNorm(nn.Module):
     def __init__(self, token_dim, fn):
         super().__init__()
@@ -149,7 +151,6 @@ class PreNorm(nn.Module):
 
     def forward(self, x, **kwargs):
         return self.fn(self.norm(x), **kwargs)
-
 
 
 class convTransformer(nn.Module):
@@ -167,7 +168,6 @@ class convTransformer(nn.Module):
             x = attn(x) + x
             x = ff(x) + x
         return x
-
 
 
 class SSVEPformer(nn.Module):
@@ -200,11 +200,10 @@ class SSVEPformer(nn.Module):
 
     def forward(self, x):
         # 将 x 转换为 FloatTensor
-        x = x.float()
+        x = x.float()  # (30,8,256)
         x = self.to_patch_embedding(x)
         x = self.transformer(x)
         return self.mlp_head(x)
-
 
 
 class TFFBformer(Module):
@@ -212,8 +211,7 @@ class TFFBformer(Module):
     T: 时间序列长度
     '''
 
-
-    def __init__(self, T, depth, heads,  chs_num, class_num, tt_dropout,  ff_dropout,  dim_thead=8,  dim_fhead=8,  dim=220):
+    def __init__(self, T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead=8, dim_fhead=8, dim=220):
         super().__init__()
         # 时间序列的网络层
         self.attentionEncoder = ModuleList([])
@@ -229,8 +227,8 @@ class TFFBformer(Module):
             self.attentionEncoder.append(ModuleList([
                 # ECAAttention(kernel_size=3),
                 # SimplifiedScaledDotProductAttention(d_model=dim, h=8),
-                Attention(dim, dim_head = dim_thead, heads = heads, dropout = tt_dropout),
-                #Attention(token_num=self.F[0], token_length=self.F[1]),
+                Attention(dim, dim_head=dim_thead, heads=heads, dropout=tt_dropout),
+                # Attention(token_num=self.F[0], token_length=self.F[1]),
                 nn.LayerNorm(dim),
                 FeedForward(dim, hidden_dim=dim_fhead, dropout=ff_dropout),
                 nn.LayerNorm(dim)
@@ -306,15 +304,15 @@ class TFFBformer(Module):
             highcut = 80
             filtered_data = butter_bandpass_filter(x, lowcut, highcut, self.T)
             filtered_data = complex_spectrum_features(filtered_data,
-                                                                    FFT_PARAMS=[Fs, ws])  # 数据维度：(36, 1, 8, 560)
+                                                      FFT_PARAMS=[Fs, ws])  # 数据维度：(36, 1, 8, 560)
             filtered_data = torch.from_numpy(filtered_data)
             subband_data.append(filtered_data)
         # 需要转换维度为(36, 8, 3, 256)
         subband_data = torch.stack(subband_data, dim=3)
         subband_data = subband_data.squeeze(1)
-
+        subband_data = subband_data.to(x.device)
         subband_outputs = [
-            subnetwork(x[:, :, i, :])  # (30, 12)
+            subnetwork(subband_data[:, :, i, :])  # (30, 12)
             for i, subnetwork in enumerate(self.subnetworks)
         ]
         # 将子网络输出进行融合
