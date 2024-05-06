@@ -1,11 +1,14 @@
 # Designer:Pan YuDong
 # Coder:God's hand
 # Time:2021/10/6 22:47
+import sys
+
 import numpy as np
 from torch.utils.data import Dataset
 import torch
 import scipy.io
 from etc.global_config import config
+from scipy import signal as SIG
 
 Ns=0 # number of subjects
 classes = config['classes'] # 数据集
@@ -53,7 +56,7 @@ class getSSVEP12Inter(Dataset):
         eeg_data = samples.swapaxes(1, 2)
         eeg_data = torch.from_numpy(eeg_data.swapaxes(0, 1))
         eeg_data = eeg_data.reshape(-1, 1, self.Nc, self.Nt)
-        print(eeg_data.shape)
+        # print(eeg_data.shape)
         return eeg_data
 
     # 所有数据拼起来
@@ -71,7 +74,7 @@ class getSSVEP12Inter(Dataset):
         # extract numpy from dict
         labels = labelfile['Label']
         label_data = torch.from_numpy(labels)
-        print(label_data.shape)
+        # print(label_data.shape)
         return label_data - 1
 
     def read_EEGLabel(self):
@@ -143,16 +146,16 @@ class getSSVEP12Intra(Dataset):
         eeg_data = samples.swapaxes(1, 2)  # (8, 1024, 180) -> (8, 180, 1024)
         eeg_data = torch.from_numpy(eeg_data.swapaxes(0, 1))  # (8, 180, 1024) -> (180, 8, 1024)
         eeg_data = eeg_data.reshape(-1, 1, self.Nc, self.Nt)  # (180, 1, 8, 1024)
-        print(eeg_data.shape)
+        # print(eeg_data.shape)
         return eeg_data
 
     # get the single label data
     def get_DataLabel(self):
         labelfile = scipy.io.loadmat(f'../data/Dial/LabSub_{self.subject}.mat')
         labels = labelfile['Label']
-        print(labels)
+        # print(labels)
         label_data = torch.from_numpy(labels)
-        print(label_data.shape)  # torch.Size([180, 1])
+        # print(label_data.shape)  # torch.Size([180, 1])
         return label_data - 1
 
 
@@ -179,6 +182,7 @@ class getSSVEP40Inter(Dataset):
 
         print(f'eeg_data for subject {subject}:', self.eeg_data.shape)
         print(f'label_data for subject {subject}:', self.label_data.shape)
+
 
     def __getitem__(self, index):
         return self.eeg_data[index], self.label_data[index]
@@ -263,7 +267,7 @@ class getSSVEP40Intra(Dataset):
         self.label_data_train = self.label_data[self.train_idx]
         self.eeg_data_test = self.eeg_data[self.test_idx]
         self.label_data_test = self.label_data[self.test_idx]
-
+        print(self.label_data)
         if mode == 'train':
             self.eeg_data = self.eeg_data_train
             self.label_data = self.label_data_train
@@ -274,12 +278,35 @@ class getSSVEP40Intra(Dataset):
         print(f'eeg_data for subject {subject}:', self.eeg_data.shape)
         print(f'label_data for subject {subject}:', self.label_data.shape)
 
+
     def __getitem__(self, index):
         return self.eeg_data[index], self.label_data[index]
 
     def __len__(self):
         return len(self.label_data)
 
+    def SSVEPFilter(self, eegData,filterType=0):
+        """
+        type
+          0: nomal trca
+          1: enhance trca
+        """
+        data = eegData
+        # print("eegData's shape ", self._eegData.shape)
+        fs = self.Fs
+        dataFiltered = None
+        if filterType == 0:
+            Wn = [6.0, 90.0]
+            Wn = np.array(Wn, np.float64) / (fs / 2)
+            b, a = SIG.cheby1(4, 0.1, Wn, btype="bandpass", analog=False, output='ba')
+            dataFiltered = SIG.lfilter(b, a, data, axis=1)
+            #            dataFiltered = SIG.filtfilt(b, a, data, axis = 1)
+            del b, a, Wn
+        elif filterType == 1:
+            sys.exit("Error:<filterType=1 means use Enhance trca by adding filter bank, to which Leo was lazy!!!>")
+        print("eegFiltered's shape ", dataFiltered.shape)
+        # del data, dataFiltered
+        return dataFiltered
     # get the single subject data
     def get_DataSub(self):
         subjectfile = scipy.io.loadmat(f'../data/tsinghua/S{self.subject}.mat')
@@ -288,6 +315,8 @@ class getSSVEP40Intra(Dataset):
         # O1, Oz, O2, PO3, POZ, PO4, PZ, PO5 and PO6 对应 61, 62, 63, 55, 56, 57, 48, 54, 58
         chnls = [48, 54, 55, 56, 57, 58, 61, 62, 63]
         samples = samples[chnls, :, :, :]
+        # 滤波
+        samples=self.SSVEPFilter(eegData=samples)
         # print(f'subject {self.subject} data shape: {samples.shape}')
         # 处理格式
         data = samples.transpose((3, 2, 0, 1))  # (6, 40, 64, 1500)

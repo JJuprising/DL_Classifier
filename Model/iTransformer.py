@@ -1,5 +1,3 @@
-from scipy import signal
-
 import numpy as np
 import torch
 from fightingcv_attention.attention.CBAM import CBAMBlock
@@ -15,25 +13,10 @@ from torch.nn import init
 
 from etc.global_config import config
 
-devices = "cuda" if torch.cuda.is_available() else "cpu"
 ws = config["data_param_12"]["ws"]
 Fs = config["data_param_12"]["Fs"]
 # 自注意力
 from Utils import Constraint
-
-
-def butter_bandpass_filter(data, lowcut, highcut, fs, order=4):
-    nyq = 0.5 * fs
-    low = lowcut / nyq
-    high = highcut / nyq
-    b, a = signal.butter(order, [low, high], btype='band')
-    x = data.cpu().numpy()  # 先将张量复制到 CPU，然后再转换为 NumPy 数组
-    # 应用滤波器
-    y = signal.lfilter(b, a, x)
-
-    # 将 y 转换回 PyTorch 张量
-    y = torch.from_numpy(y)
-    return y
 
 
 #
@@ -57,10 +40,6 @@ class Attention(nn.Module):
         ) if project_out else nn.Identity()
 
     def forward(self, x):
-        qkv = self.to_qkv(x).chunk(3,
-                                   dim=-1)  # x:(30, 16, 220) qkv:(tuple:3)[0:(30, 16, 64),1:(30, 16, 64),2:(30, 16, 64)]
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads),
-                      qkv)  # q:(30, 8, 16, 8) (batch_size, channels, heads * dim_head)
         qkv = self.to_qkv(x).chunk(3,
                                    dim=-1)  # x:(30, 16, 220) qkv:(tuple:3)[0:(30, 16, 64),1:(30, 16, 64),2:(30, 16, 64)]
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads),
@@ -200,29 +179,23 @@ class SSVEPformer(nn.Module):
 
     def forward(self, x):
         # 将 x 转换为 FloatTensor
-        x = x.float()  # (30,8,256)
+        x = x.float()
         x = self.to_patch_embedding(x)
         x = self.transformer(x)
         return self.mlp_head(x)
 
 
-class TFFBformer(Module):
+class iTransformer(Module):
     '''
     T: 时间序列长度
     '''
 
-    def __init__(self, T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead=8, dim_fhead=8, dim=220):
+    def __init__(self, T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead=8, dim_fhead=8, dim=560):
         super().__init__()
         # 时间序列的网络层
         self.attentionEncoder = ModuleList([])
-        self.fc = nn.Linear(256, class_num)
-        self.Linear = nn.Linear(T, dim)
-        self.T = T
-        self.dropout_level = 0.5
-        self.F = [chs_num * 2] + [chs_num * 4]
-        self.K = 10
-        self.S = 2
-        self.cbam_block1 = CBAMBlock(channel=self.F[1], reduction=16, kernel_size=7)
+        self.fc = nn.Linear(560, class_num)
+        self.Linear = nn.Linear(560, dim)
         for _ in range(depth):
             self.attentionEncoder.append(ModuleList([
                 # ECAAttention(kernel_size=3),
@@ -233,103 +206,33 @@ class TFFBformer(Module):
                 FeedForward(dim, hidden_dim=dim_fhead, dropout=ff_dropout),
                 nn.LayerNorm(dim)
             ]))
-        net = []
-        net.append(self.spatial_block(chs_num, self.dropout_level))
-        net.append(self.enhanced_block(self.F[0], self.F[1], self.dropout_level,
-                                       1, 1))
-
-        self.conv_layers = nn.Sequential(*net)
 
         # SSVEPformer
         self.subnetwork = SSVEPformer(depth=depth, attention_kernal_length=31, chs_num=chs_num, class_num=class_num,
                                       dropout=ff_dropout)
-        self.subnetworks = nn.ModuleList([
-            SSVEPformer(depth, 31, chs_num, class_num, ff_dropout)
-            for _ in range(3)
-        ])
 
         # 结果融合层
-        self.fusion_layer = nn.Conv1d(3, 1, kernel_size=1)
-
-    def spatial_block(self, nChan, dropout_level):
-        '''
-           Spatial filter block,assign different weight to different channels and fuse them
-        '''
-        block = []
-        block.append(Constraint.Conv2dWithConstraint(in_channels=1, out_channels=nChan * 2, kernel_size=(nChan, 1),
-                                                     max_norm=1.0))
-        block.append(nn.BatchNorm2d(num_features=nChan * 2))
-        block.append(nn.PReLU())
-        block.append(nn.Dropout(dropout_level))
-        layer = nn.Sequential(*block)
-        return layer
-
-    def enhanced_block(self, in_channels, out_channels, dropout_level, kernel_size, stride):
-        '''
-           Enhanced structure block,build a CNN block to absorb data and output its stable feature
-        '''
-        block = []
-        block.append(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(1, kernel_size),
-                               stride=(1, stride)))
-        block.append(nn.BatchNorm2d(num_features=out_channels))
-        block.append(nn.PReLU())
-        block.append(nn.Dropout(dropout_level))
-        layer = nn.Sequential(*block)
-        return layer
+        self.fusion_layer = nn.Conv1d(2, 1, kernel_size=1)
 
     # 有两个子网络，一个子网络处理时间序列，一个子网络处理频谱序列
     def forward(self, x):
+
         # 处理时间序列
         # 通过线性层对序列进行裁剪
+        x_t = complex_spectrum_features(x, FFT_PARAMS=[Fs, ws])
+        x_t = torch.from_numpy(x_t)
+        x_t = x_t.to(x.device)
         # x_t = self.Linear(x) # (30, 1, 8, 220)
-        # x_t = torch.Tensor(x_t.squeeze(1))
-        #
-        # for attn, attn_post_norm, ff, ff_post_norm in self.attentionEncoder:
-        #     x_t = attn(x_t) + x_t
-        #     x_t = attn_post_norm(x_t)
-        #     x_t = ff(x_t) + x_t
-        #     x_t = ff_post_norm(x_t)
+        x_t = torch.Tensor(x_t.squeeze(1))
+        x_t = x_t.float()
 
-        x_t = self.conv_layers(x)
-        x_t = x_t.squeeze(2)
+        for attn, attn_post_norm, ff, ff_post_norm in self.attentionEncoder:
+            x_t = attn(x_t) + x_t
+            x_t = attn_post_norm(x_t)
+            x_t = ff(x_t) + x_t
+            x_t = ff_post_norm(x_t)
 
         x_t = x_t.mean(dim=1)  # (30, 220)
-
         x_t = self.fc(x_t)  # (30, 12)
 
-        # 处理频谱序列
-        subband_data = []
-        for i in range(3):
-            lowcut = i * 8 + 2  # 根据数据集 1 的特性设置截止频率
-            highcut = 80
-            filtered_data = butter_bandpass_filter(x, lowcut, highcut, self.T)
-            filtered_data = complex_spectrum_features(filtered_data,
-                                                      FFT_PARAMS=[Fs, ws])  # 数据维度：(36, 1, 8, 560)
-            filtered_data = torch.from_numpy(filtered_data)
-            subband_data.append(filtered_data)
-        # 需要转换维度为(36, 8, 3, 256)
-        subband_data = torch.stack(subband_data, dim=3)
-        subband_data = subband_data.squeeze(1)
-        subband_data = subband_data.to(x.device)
-        subband_outputs = [
-            subnetwork(subband_data[:, :, i, :])  # (30, 12)
-            for i, subnetwork in enumerate(self.subnetworks)
-        ]
-        # 将子网络输出进行融合
-        outputs = torch.stack(subband_outputs, dim=2)  # (30, 12, 3)
-        outputs = torch.transpose(outputs, 1, 2)  # (30, 3, 12)
-        fused_output = self.fusion_layer(outputs)  # (30, 1, 12)
-        x_fft = fused_output.squeeze(1)
-
-        # 计算 x_t 和 x_fft 在第二维上的大小
-
-        weight_x_t = 0.4
-        weight_x_fft = 0.6
-
-        # 分别应用权重
-        weighted_x_t = torch.mul(x_t, weight_x_t)
-        weighted_x_fft = torch.mul(x_fft, weight_x_fft)
-
-        # 加权求和
-        fused_output = weighted_x_t + weighted_x_fft
-        return fused_output
+        return x_t

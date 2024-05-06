@@ -10,6 +10,9 @@ import math
 import argparse
 import sys
 
+from Utils import Constraint
+
+
 def complex_spectrum_features(segmented_data, FFT_PARAMS):
     sample_freq = FFT_PARAMS[0]
     time_len = FFT_PARAMS[1]
@@ -81,24 +84,63 @@ class Transformer(nn.Module):
         return x
 
 
-class SSVEPformer(nn.Module):
+class SSVEPformer3(nn.Module):
+    # 空间滤波器模块，为每个通道分配不同的权重并融合它们
+    def spatial_block(self, nChan, dropout_level):
+        '''
+           Spatial filter block,assign different weight to different channels and fuse them
+        '''
+        block = []
+        block.append(Constraint.Conv2dWithConstraint(in_channels=1, out_channels=nChan * 2, kernel_size=(nChan, 1),
+                                                     max_norm=1.0))  # (30, 16, 1, 256)
+        block.append(nn.BatchNorm2d(num_features=nChan * 2))
+        block.append(nn.GELU())
+        block.append(nn.Dropout(dropout_level))
+        layer = nn.Sequential(*block)
+        return layer
+
+    # 增强模块，使用CNN块吸收数据并输出其稳定特征
+    def enhanced_block(self, in_channels, out_channels, dropout_level, kernel_size, stride):
+        '''
+           Enhanced structure block,build a CNN block to absorb data and output its stable feature
+        '''
+        block = []
+        block.append(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(1, kernel_size),
+                               stride=(1, stride)))  # input(30, 16, 8, 256) output(30, 32, 8, 124)
+        block.append(nn.BatchNorm2d(num_features=out_channels))
+        block.append(nn.GELU())
+        block.append(nn.Dropout(dropout_level))
+        layer = nn.Sequential(*block)
+        return layer
     def __init__(self, depth, attention_kernal_length, chs_num, class_num, dropout):
         super().__init__()
-        token_num = chs_num * 2
+        # token_num = chs_num * 2
+        self.F = [chs_num * 1] + [chs_num * 2]
         token_dim = 560
+
+        self.K = 10
+        self.S = 2
+        output_dim = int((token_dim  - 1 * (self.K - 1) - 1) / self.S + 1)
+
+        net = []
+        net.append(self.spatial_block(chs_num, dropout))  # （30， 16， 1， 256）
+        net.append(self.enhanced_block(self.F[1], self.F[1], dropout,
+                                       self.K, self.S))  # (30, 32, 1, 124)
+
+        self.conv_layers = nn.Sequential(*net)
         self.to_patch_embedding = nn.Sequential(
-            nn.Conv1d(chs_num, token_num, 1, padding=1 // 2, groups=1),
-            nn.LayerNorm(token_dim),
+            nn.Conv1d(self.F[1], self.F[1], 1, padding=1 // 2, groups=1),
+            nn.LayerNorm(output_dim),
             nn.GELU(),
             nn.Dropout(dropout)
         )
 
-        self.transformer = Transformer(depth, token_num, token_dim, attention_kernal_length, dropout)
+        self.transformer = Transformer(depth, self.F[1], output_dim, attention_kernal_length, dropout)
 
         self.mlp_head = nn.Sequential(
             nn.Flatten(),
             nn.Dropout(dropout),
-            nn.Linear(token_dim * token_num, class_num * 6),
+            nn.Linear(output_dim * self.F[1], class_num * 6),
             nn.LayerNorm(class_num * 6),
             nn.GELU(),
             nn.Dropout(0.5),
@@ -111,6 +153,8 @@ class SSVEPformer(nn.Module):
 
     def forward(self, x):
         # input(30, 8, 560)
-        x = self.to_patch_embedding(x) # x:(30, 16, 560)
-        x = self.transformer(x) # x:(30, 16, 560)
+        x = self.conv_layers(x) # x:(30, 32, 1, 124)
+        x = x.squeeze(2)  # (30, 32, 124)
+        # x = self.to_patch_embedding(x) # x:(30, 32, 124)
+        x = self.transformer(x) # x:(30, 32, 124)
         return self.mlp_head(x)

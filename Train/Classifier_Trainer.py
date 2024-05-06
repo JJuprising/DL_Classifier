@@ -6,8 +6,10 @@ import time
 from etc.global_config import config
 from tqdm import tqdm
 
+
 def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criterion, net, device, lr_jitter=False):
     algorithm = config['algorithm']
+    width = config['KANformer']['width']
     if algorithm == "DDGCNN":
         lr_decay_rate = config[algorithm]['lr_decay_rate']
         optim_patience = config[algorithm]['optim_patience']
@@ -17,17 +19,29 @@ def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criter
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs * len(train_iter),
                                                                eta_min=5e-6)
     best_val_acc = 0.0
-    # 创建结果保存目录
-    dir_path = f'../Result/classes_{config["classes"]}/{algorithm}'
-    print(dir_path)
-    os.makedirs(dir_path, exist_ok=True)
-    # 打开csv文件
-    csv_path = f'../Result/classes_{config["classes"]}/{algorithm}/subject_{subject}_{config["data_param_12"]["ws"]}.csv'
+
+    if algorithm == 'KANformer':
+        # 创建结果保存目录
+        dir_path = f'../Result/classes_{config["classes"]}/{algorithm}/{str(width)}'
+        print(dir_path)
+        os.makedirs(dir_path, exist_ok=True)
+        # 打开csv文件
+        csv_path = f'../Result/classes_{config["classes"]}/{algorithm}/{str(width)}/subject_{subject}_ws({config["data_param_12"]["ws"]}s)_UD({config["train_param"]["UD"]})_width({width}).csv'
+    else:
+        # 创建结果保存目录
+        dir_path = f'../Result/classes_{config["classes"]}/{algorithm}'
+        print(dir_path)
+        os.makedirs(dir_path, exist_ok=True)
+        # 打开csv文件
+        csv_path = f'../Result/classes_{config["classes"]}/{algorithm}/subject_{subject}_ws({config["data_param_12"]["ws"]}s)_UD({config["train_param"]["UD"]}).csv'
     with open(csv_path, 'w', newline='') as csvfile:
-        fieldnames = ['subject', 'epoch', 'val_acc']
+        fieldnames = ['subject', 'epoch', 'val_acc', 'total_params']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerow({'subject': subject, 'epoch': 0, 'val_acc': 0})
+        # 计算网络的参数量
+        total_params = sum(p.numel() for p in net.parameters())
+        print("网络参数量：", total_params)
+        writer.writerow({'subject': subject, 'epoch': 0, 'val_acc': 0, 'total_params': total_params})
         csvfile.flush()
 
         for epoch in range(num_epochs):
@@ -64,11 +78,12 @@ def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criter
 
             train_loss = sum_loss / len(train_iter)
             train_acc = sum_acc / len(train_iter)
+            # torch.save(net, f'../Result/classes_{config["classes"]}/{algorithm}/best_Weights_ws({config["data_param_12"]["ws"]}s)_UD({config["train_param"]["UD"]}).pkl')
             if lr_jitter and algorithm == "DDGCNN":
                 scheduler.step(train_acc)
             # print(f"epoch{epoch + 1}, train_loss={train_loss:.3f}, train_acc={train_acc:.3f}")
             # ==================================testing procedure==========================================================
-            if epoch == num_epochs - 1 or (epoch+1) % 10 == 0:
+            if algorithm == 'KANformer' or epoch == num_epochs - 1 or (epoch + 1) % 10 == 0:
                 net.eval()
                 sum_acc = 0.0
                 for data in test_iter:
@@ -90,13 +105,23 @@ def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criter
                 val_acc = sum_acc / len(test_iter)
                 if val_acc > best_val_acc:
                     best_val_acc = val_acc
-                    torch.save(net.state_dict(), f'../Result/classes_{config["classes"]}/{algorithm}/best_Weights(1.0S).pkl')
+                    if algorithm == 'KANformer':
+                        torch.save(net,
+                                   f'../Result/classes_{config["classes"]}/{algorithm}/{str(width)}/best_Weights_ws({config["data_param_12"]["ws"]}s)_UD({config["train_param"]["UD"]})_width({width}).pkl')
+                    else:
+                        torch.save(net,
+                                   f'../Result/classes_{config["classes"]}/{algorithm}/best_Weights_ws({config["data_param_12"]["ws"]}s)_UD({config["train_param"]["UD"]}).pkl')
                 # 只保留四位小数的精度
                 writer.writerow({'subject': subject, 'epoch': epoch + 1, 'val_acc': "%.4f" % val_acc.cpu().data.item()})
                 csvfile.flush()
                 print(f"epoch{epoch + 1}, val_acc={val_acc:.3f}")
     print(
         f'subject_{subject} ,training finished at {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} with final_valid_acc={val_acc:.3f}')
-    torch.save(net.state_dict(), f'../Result/classes_{config["classes"]}/{algorithm}/last_Weights(1.0S).pkl')
+    if algorithm == 'KANformer':
+        torch.save(net,
+                   f'../Result/classes_{config["classes"]}/{algorithm}/{str(width)}/last_Weights_ws({config["data_param_12"]["ws"]}s)_UD({config["train_param"]["UD"]})_width({width}).pkl')
+    else:
+        torch.save(net,
+                   f'../Result/classes_{config["classes"]}/{algorithm}/last_Weights_ws({config["data_param_12"]["ws"]}s)_UD({config["train_param"]["UD"]}).pkl')
     torch.cuda.empty_cache()
     return val_acc.cpu().data

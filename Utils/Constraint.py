@@ -4,13 +4,21 @@
 import torch
 from torch import nn
 
-# 自定义卷积层通过对卷积核权重进行 L2 范数约束，实现了权重正则化
+'''
+L2 范数，也称为欧几里得范数，是向量元素平方和的平方根
+自定义卷积层通过对卷积核权重进行 L2 范数约束，实现了权重正则化
+'''
 class Conv2dWithConstraint(nn.Conv2d):
     def __init__(self, *args, max_norm=1, **kwargs):
         self.max_norm = max_norm
         super(Conv2dWithConstraint, self).__init__(*args, **kwargs)
 
     def forward(self, X):
+        '''
+        对 self.weight.data 中的每个权重向量 (第 0 维) 计算 L2 范数。
+        如果 L2 范数大于 max_norm，则将权重向量缩放到 L2 范数等于 max_norm。
+        将修改后的权重张量赋值回 self.weight.data。
+        '''
         self.weight.data = torch.renorm(self.weight.data, p=2, dim=0, maxnorm=self.max_norm)
         return super(Conv2dWithConstraint, self).forward(X)
 

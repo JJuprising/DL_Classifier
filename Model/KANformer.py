@@ -9,6 +9,7 @@ from scipy import signal
 import math
 import argparse
 import sys
+from Utils.kan import KAN
 
 def complex_spectrum_features(segmented_data, FFT_PARAMS):
     sample_freq = FFT_PARAMS[0]
@@ -65,6 +66,11 @@ class Attention(nn.Module):
 
 
 class Transformer(nn.Module):
+    '''
+    token_num: 通道数
+    token_length: 通道长度
+    kernal_length: 卷积核长度
+    '''
     def __init__(self, depth, token_num, token_length, kernal_length, dropout):
         super().__init__()
         self.layers = nn.ModuleList([])
@@ -81,8 +87,8 @@ class Transformer(nn.Module):
         return x
 
 
-class SSVEPformer(nn.Module):
-    def __init__(self, depth, attention_kernal_length, chs_num, class_num, dropout):
+class KANformer(nn.Module):
+    def __init__(self, depth, attention_kernal_length, chs_num, class_num, dropout, width):
         super().__init__()
         token_num = chs_num * 2
         token_dim = 560
@@ -104,13 +110,28 @@ class SSVEPformer(nn.Module):
             nn.Dropout(0.5),
             nn.Linear(class_num * 6, class_num)
         )
+        self.cut_size_head = nn.Sequential(
+            nn.Flatten(),
+            nn.Dropout(dropout),
+            nn.Linear(token_dim * token_num, width[0]),
+            nn.LayerNorm(width[0]),
+
+        )
+
 
         for m in self.modules():
             if isinstance(m, (nn.Conv1d, nn.Linear)):
                 nn.init.normal_(m.weight, mean=0.0, std=0.01)
 
+        # self.kan = nn.Sequential(KAN(width=width, device='cuda:0'))
+        self.kan = nn.Sequential(KAN(width=width))
+
     def forward(self, x):
-        # input(30, 8, 560)
+        # input(30, 16, 560)
         x = self.to_patch_embedding(x) # x:(30, 16, 560)
-        x = self.transformer(x) # x:(30, 16, 560)
-        return self.mlp_head(x)
+        x = self.transformer(x) # (30, 16, 560)
+        # 修改维度
+        x = einops.rearrange(x, 'b c n -> b (c n)')
+        x = self.cut_size_head(x)
+        x = self.kan(x)
+        return x
