@@ -5,12 +5,15 @@ import torch
 import torch.nn as nn
 import numpy as np
 import einops
+from fightingcv_attention.attention.CBAM import CBAMBlock
 from scipy import signal
 import math
 import argparse
 import sys
 
 from Utils import Constraint
+# from Utils.kan import KAN
+from Utils.efficient_kan import KAN
 
 
 def complex_spectrum_features(segmented_data, FFT_PARAMS):
@@ -112,7 +115,7 @@ class SSVEPformer3(nn.Module):
         block.append(nn.Dropout(dropout_level))
         layer = nn.Sequential(*block)
         return layer
-    def __init__(self, depth, attention_kernal_length, chs_num, class_num, dropout):
+    def __init__(self, depth, attention_kernal_length, chs_num, class_num, dropout, width):
         super().__init__()
         # token_num = chs_num * 2
         self.F = [chs_num * 1] + [chs_num * 2]
@@ -147,6 +150,19 @@ class SSVEPformer3(nn.Module):
             nn.Linear(class_num * 6, class_num)
         )
 
+        self.CBAM = CBAMBlock(channel=self.F[1], reduction=1, kernel_size=7)
+
+        self.cut_size_head = nn.Sequential(
+            nn.Flatten(),
+            nn.Dropout(dropout),
+            nn.Linear(output_dim * self.F[1], width[0]),
+            nn.LayerNorm(width[0]),
+
+        )
+
+        # self.kan = nn.Sequential(KAN(layers_hidden=width, device="cuda" if torch.cuda.is_available() else "cpu"))
+        self.kan = nn.Sequential(KAN(layers_hidden=width))
+
         for m in self.modules():
             if isinstance(m, (nn.Conv1d, nn.Linear)):
                 nn.init.normal_(m.weight, mean=0.0, std=0.01)
@@ -154,7 +170,10 @@ class SSVEPformer3(nn.Module):
     def forward(self, x):
         # input(30, 8, 560)
         x = self.conv_layers(x) # x:(30, 32, 1, 124)
+        x = self.CBAM(x)
         x = x.squeeze(2)  # (30, 32, 124)
         # x = self.to_patch_embedding(x) # x:(30, 32, 124)
         x = self.transformer(x) # x:(30, 32, 124)
-        return self.mlp_head(x)
+        x = self.cut_size_head(x)
+        x = self.kan(x)
+        return x

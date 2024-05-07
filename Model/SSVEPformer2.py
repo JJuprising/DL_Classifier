@@ -122,13 +122,13 @@ class SSVEPformer2(nn.Module):
 
         self.K = 10
         self.S = 2
-        # output_dim = int((token_dim  - 1 * (self.K - 1) - 1) / self.S + 1)
-        output_dim = token_dim
+        output_dim = int((token_dim - 1 * (self.K - 1) - 1) / self.S + 1)
+        # output_dim = token_dim
 
         net = []
         net.append(self.spatial_block(chs_num, dropout))  # （30， 16， 1， 256）
-        # net.append(self.enhanced_block(self.F[0], self.F[1], dropout,
-        #                                self.K, self.S))  # (30, 32, 1, 124)
+        net.append(self.enhanced_block(self.F[1], self.F[1], dropout,
+                                       self.K, self.S))  # (30, 32, 1, 124)
 
         self.conv_layers = nn.Sequential(*net)
         self.to_patch_embedding = nn.Sequential(
@@ -140,7 +140,7 @@ class SSVEPformer2(nn.Module):
 
         self.transformer = Transformer(depth, self.F[1], output_dim, attention_kernal_length, dropout)
 
-        self.CBAM = CBAMBlock(channel=self.F[1], reduction=1, kernel_size=19)
+        self.CBAM = CBAMBlock(channel=self.F[1], reduction=1, kernel_size=7)
 
         self.mlp_head = nn.Sequential(
             nn.Flatten(),

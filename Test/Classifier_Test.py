@@ -16,7 +16,7 @@ def run():
     # 1、Define parameters of eeg
     algorithm = config['algorithm']
     classes = config['classes']
-
+    kan_array = ['KANformer', 'SSVEPformer3']
     print(f"{'*' * 20} Current Algorithm usage: {algorithm} Using Dataset {classes} classes {'*' * 20}")
     train_radio = 0.8
     '''Parameters for training procedure'''
@@ -81,7 +81,7 @@ def run():
                 elif UD == 1:
                     EEGData_Train = EEGDataset.getSSVEP12Inter(subject=testSubject,
                                                                mode='train')
-                    EEGData_Test = EEGDataset.getSSVEP12Inter(subject=testSubject,  mode='test')
+                    EEGData_Test = EEGDataset.getSSVEP12Inter(subject=testSubject, mode='test')
             # -----------40classes  Experiments--------------
             elif classes == 40:
                 # -----------40classes Intra-Subject Experiments--------------
@@ -93,26 +93,27 @@ def run():
                 elif UD == 1:
                     EEGData_Train = EEGDataset.getSSVEP40Inter(subject=testSubject,
                                                                mode='train')
-                    EEGData_Test = EEGDataset.getSSVEP40Inter(subject=testSubject,  mode='test')
+                    EEGData_Test = EEGDataset.getSSVEP40Inter(subject=testSubject, mode='test')
 
             eeg_train_dataloader, eeg_test_dataloader = Trainer_Script.data_preprocess(EEGData_Train, EEGData_Test)
 
             # Define Network
             net, criterion, optimizer = Trainer_Script.build_model(devices)
-            test_acc = Classifier_Trainer.train_on_batch(testSubject, epochs, eeg_train_dataloader, eeg_test_dataloader, optimizer,
+            test_acc = Classifier_Trainer.train_on_batch(testSubject, epochs, eeg_train_dataloader, eeg_test_dataloader,
+                                                         optimizer,
                                                          criterion,
                                                          net, devices, lr_jitter=lr_jitter)
             final_test_acc_list.append(test_acc)
             print(f"Subject {testSubject} Test Accuracy: {test_acc:.3f}")
         final_acc_list.append(final_test_acc_list)
-        if algorithm == 'KANformer':
-            algorithm = algorithm + '/'+str(config['KANformer']['width'])
+
+        if algorithm in kan_array:
+            algorithm = algorithm + '/' + str(config[algorithm]['width'])
         Ploter.plot_save_Result(final_acc_list, model_name=algorithm, dataset='classes_12', UD=UD, ratio=ratio,
                                 win_size=str(ws), text=True)
 
     # print(final_acc_list)
     # 3、Plot Result
-
 
 
 if __name__ == '__main__':

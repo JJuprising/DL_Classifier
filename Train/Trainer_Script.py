@@ -238,7 +238,7 @@ def build_model(devices):
     elif algorithm == "SSVEPformer":
         net = SSVEPformer.SSVEPformer(depth=2, attention_kernal_length=31, chs_num=Nc, class_num=Nf,
                                       dropout=0.5)
-        net.apply(Constraint.initialize_weights)
+        net = Constraint.Spectral_Normalization(net)
 
     elif algorithm == "SSVEPformer2":
         net = SSVEPformer2.SSVEPformer2(depth=2, attention_kernal_length=31, chs_num=Nc, class_num=Nf,
@@ -247,8 +247,8 @@ def build_model(devices):
 
     elif algorithm == "SSVEPformer3":
         net = SSVEPformer3.SSVEPformer3(depth=2, attention_kernal_length=31, chs_num=Nc, class_num=Nf,
-                                      dropout=0.5)
-        net.apply(Constraint.initialize_weights)
+                                      dropout=0.5, width=config[algorithm]['width'])
+        net = Constraint.Spectral_Normalization(net)
 
     elif algorithm == "KANformer":
         net = KANformer.KANformer(depth=2, attention_kernal_length=31, chs_num=Nc, class_num=Nf,

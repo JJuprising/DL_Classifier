@@ -1,4 +1,4 @@
-algorithm: SSVEPformer2
+algorithm: SSVEPformer3
 classes: 12 # 哪个分类数据 12-Dial 40-tsinghua
 
 # Parameters for training procedure
@@ -70,25 +70,26 @@ SSVEPformer:
   epochs: 40                  # number of epochs
   bz: 30                     # batch size
   lr: 0.001                       # learning rate
-  wd: 0.0001                   # weight decay
+  wd: 0.001                   # weight decay
   lr_jitter: false             # learning rate scheduler
 
 SSVEPformer2:
   epochs: 40                  # number of epochs
   bz: 30                     # batch size
   lr: 0.001                       # learning rate
-  wd: 0.0001                   # weight decay
+  wd: 0.001                   # weight decay
   lr_jitter: false             # learning rate scheduler
 
 SSVEPformer3:
+  width: [48,30,12]
   epochs: 40                  # number of epochs
   bz: 30                     # batch size
   lr: 0.001                       # learning rate
-  wd: 0.0001                   # weight decay
+  wd: 0.001                   # weight decay
   lr_jitter: false             # learning rate scheduler
 
 KANformer:
-  width: [48, 30, 12]
+  width: [36, 24, 12]
   epochs: 20               # number of epochs
   bz: 30                     # batch size
   lr: 0.001                       # learning rate
@@ -96,10 +97,10 @@ KANformer:
   lr_jitter: true             # learning rate scheduler
 
 FBSSVEPformer:
-  epochs: 100                  # number of epochs
-  bz: 30                     # batch size
-  lr: 0.002                       # learning rate
-  wd: 0.0001                   # weight decay
+  epochs: 20                  # number of epochs
+  bz: 120                     # batch size
+  lr: 0.001                       # learning rate
+  wd: 0.001                   # weight decay
   lr_jitter: true             # learning rate scheduler
 
 TFformer:
@@ -158,6 +159,4 @@ CAIFormerNew:
   lr: 0.01                       # learning rate
   wd: 0.0001                   # weight decay
   lr_jitter: true              # learning rate scheduler
-
-
 

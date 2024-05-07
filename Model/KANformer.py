@@ -9,7 +9,8 @@ from scipy import signal
 import math
 import argparse
 import sys
-from Utils.kan import KAN
+# from Utils.kan import KAN
+from Utils.efficient_kan import KAN
 
 def complex_spectrum_features(segmented_data, FFT_PARAMS):
     sample_freq = FFT_PARAMS[0]
@@ -124,7 +125,7 @@ class KANformer(nn.Module):
                 nn.init.normal_(m.weight, mean=0.0, std=0.01)
 
         # self.kan = nn.Sequential(KAN(width=width, device='cuda:0'))
-        self.kan = nn.Sequential(KAN(width=width))
+        self.kan = nn.Sequential(KAN(layers_hidden=width))
 
     def forward(self, x):
         # input(30, 16, 560)
