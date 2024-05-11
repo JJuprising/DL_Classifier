@@ -170,10 +170,12 @@ class SSVEPformer3(nn.Module):
     def forward(self, x):
         # input(30, 8, 560)
         x = self.conv_layers(x) # x:(30, 32, 1, 124)
-        x = self.CBAM(x)
+        # x = self.CBAM(x)
         x = x.squeeze(2)  # (30, 32, 124)
         # x = self.to_patch_embedding(x) # x:(30, 32, 124)
         x = self.transformer(x) # x:(30, 32, 124)
+        x = x.unsqueeze(2)
+        x = self.CBAM(x)
         x = self.cut_size_head(x)
         x = self.kan(x)
         return x

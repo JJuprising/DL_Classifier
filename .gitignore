@@ -1,4 +1,5 @@
 ycb/
+Result/
 .idea/
 **/__pycache__/
 data/tsinghua/S1.mat

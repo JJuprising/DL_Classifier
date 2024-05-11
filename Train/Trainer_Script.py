@@ -5,7 +5,8 @@ import numpy as np
 import torch
 from torch import nn
 
-from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer, FBSSVEPformer
+from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer, FBSSVEPformer, \
+    TFformer2
 
 from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CNNAttentionGRU, \
     CNNAttentionMLP, CACAM, CACAMNew, PSDCNN, CAIFormerNew, TFformer, iTransformer, KANformer, TFFBformer, SSVEPformer2, SSVEPformer3
@@ -262,6 +263,11 @@ def build_model(devices):
 
     elif algorithm == "TFformer":
         net = TFformer.TFformer(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,
+                                T=Nt)
+        net = Constraint.Spectral_Normalization(net)
+
+    elif algorithm == "TFformer2":
+        net = TFformer2.TFformer2(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,
                                 T=Nt)
         net = Constraint.Spectral_Normalization(net)
 

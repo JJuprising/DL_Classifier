@@ -1,4 +1,4 @@
-algorithm: SSVEPformer3
+algorithm: TFformer2
 classes: 12 # 哪个分类数据 12-Dial 40-tsinghua
 
 # Parameters for training procedure
@@ -110,6 +110,13 @@ TFformer:
   wd: 0.0001                   # weight decay
   lr_jitter: true             # learning rate scheduler
 
+TFformer2:
+  epochs: 40                  # number of epochs
+  bz: 30                     # batch size
+  lr: 0.002                       # learning rate
+  wd: 0.0001                   # weight decay
+  lr_jitter: true             # learning rate scheduler
+
 TFFBformer:
   epochs: 80                  # number of epochs
   bz: 30                     # batch size
@@ -118,10 +125,10 @@ TFFBformer:
   lr_jitter: true             # learning rate scheduler
 
 iTransformer:
-  epochs: 100                  # number of epochs
+  epochs: 40                  # number of epochs
   bz: 30                     # batch size
   lr: 0.001                       # learning rate
-  wd: 0.0001                   # weight decay
+  wd: 0.001                   # weight decay
   lr_jitter: true             # learning rate scheduler
 
 DDGCNN:

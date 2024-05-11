@@ -13,7 +13,6 @@ from torch.nn import init
 
 from etc.global_config import config
 
-devices = "cuda" if torch.cuda.is_available() else "cpu"
 ws = config["data_param_12"]["ws"]
 Fs = config["data_param_12"]["Fs"]
 # 自注意力
@@ -47,7 +46,7 @@ class Attention(nn.Module):
                       qkv)  # q:(30, 8, 16, 8) (batch_size, channels, heads * dim_head)
 
         # 点乘操作
-        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale  # dots:(30, 8, 16, 16)
+        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale  # dots:(30, 8, 16, 16)， transpose是转置
 
         attn = self.attend(dots)  # attn:(30, 8, 16, 16)
         attn = self.dropout(attn)
@@ -150,81 +149,54 @@ class convTransformer(nn.Module):
         return x
 
 
-class SSVEPformer(nn.Module):
-    def __init__(self, out_dim, depth, attention_kernal_length, chs_num, class_num, dropout):
-        super().__init__()
-        token_num = chs_num * 2
-        token_dim = 560
-        self.to_patch_embedding = nn.Sequential(
-            nn.Conv1d(chs_num, token_num, 1, padding=1 // 2, groups=1),
-            nn.LayerNorm(token_dim),
-            nn.GELU(),
-            nn.Dropout(dropout)
-        )
-
-        self.transformer = convTransformer(depth, token_num, token_dim, attention_kernal_length, dropout)
-
-        self.mlp_head = nn.Sequential(
-            nn.Flatten(),
-            nn.Dropout(dropout),
-            nn.Linear(token_dim * token_num, out_dim[0]),
-            nn.LayerNorm(out_dim[0]),
-            nn.GELU(),
-            nn.Dropout(0.5),
-            nn.Linear(out_dim[0], out_dim[1])
-        )
-
-        for m in self.modules():
-            if isinstance(m, (nn.Conv1d, nn.Linear)):
-                nn.init.normal_(m.weight, mean=0.0, std=0.01)
-
-    def forward(self, x):
-        # 将 x 转换为 FloatTensor
-        x = x.float()
-        x = self.to_patch_embedding(x)
-        x = self.transformer(x)
-        return self.mlp_head(x)
-
-
-class TFformer2(Module):
+class iTransformer(Module):
+    # 空间滤波器模块，为每个通道分配不同的权重并融合它们
     def spatial_block(self, nChan, dropout_level):
         '''
            Spatial filter block,assign different weight to different channels and fuse them
         '''
         block = []
         block.append(Constraint.Conv2dWithConstraint(in_channels=1, out_channels=nChan * 2, kernel_size=(nChan, 1),
-                                                     max_norm=1.0))
+                                                     max_norm=1.0))  # (30, 16, 1, 256)
         block.append(nn.BatchNorm2d(num_features=nChan * 2))
         block.append(nn.PReLU())
         block.append(nn.Dropout(dropout_level))
         layer = nn.Sequential(*block)
         return layer
 
+    # 增强模块，使用CNN块吸收数据并输出其稳定特征
     def enhanced_block(self, in_channels, out_channels, dropout_level, kernel_size, stride):
         '''
            Enhanced structure block,build a CNN block to absorb data and output its stable feature
         '''
         block = []
         block.append(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(1, kernel_size),
-                               stride=(1, stride)))
+                               stride=(1, stride)))  # input(30, 16, 8, 256) output(30, 32, 8, 124)
         block.append(nn.BatchNorm2d(num_features=out_channels))
         block.append(nn.PReLU())
         block.append(nn.Dropout(dropout_level))
         layer = nn.Sequential(*block)
         return layer
+
     '''
     T: 时间序列长度
     '''
-
-    def __init__(self, T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead=8, dim_fhead=8, dim=220):
+    def __init__(self, T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead=8, dim_fhead=8, dim=560):
         super().__init__()
         # 时间序列的网络层
         self.attentionEncoder = ModuleList([])
-        self.dropout_level = 0.5
-        # self.F = [chs_num * 2] + [chs_num * 4]
-        # self.K = 10
-        # self.S = 2
-        # self.cbam_block1 = CBAMBlock(channel=self.F[1], reduction=16, kernel_size=7)
+        self.fc = nn.Linear(T, class_num)
+        self.Linear = nn.Linear(560, dim)
+        self.F = [chs_num * 2] + [chs_num * 4]
+        self.K = 10
+        self.S = 2
+        output_dim = int((T - 1 * (self.K - 1) - 1) / self.S + 1)
+        net = []
+        net.append(self.spatial_block(chs_num, ff_dropout))  # （30， 16， 1， 256）
+        net.append(self.enhanced_block(self.F[0], self.F[1], ff_dropout,
+                                       self.K, self.S))  # (30, 32, 1, 124)
+
+        self.conv_layers = nn.Sequential(*net)
         for _ in range(depth):
             self.attentionEncoder.append(ModuleList([
                 # ECAAttention(kernel_size=3),
@@ -236,67 +208,44 @@ class TFformer2(Module):
                 nn.LayerNorm(chs_num)
             ]))
 
-        self.out_dim = [class_num * 8, class_num * 4]
-        self.time_conv_kernel = 7
-        self.time_conv_dim = T - self.time_conv_kernel + 1
-        self.time_head = nn.Sequential(
-            nn.Conv1d(chs_num, self.out_dim[0] * 2, self.time_conv_kernel), #整合不同通道的特征
-            nn.GELU(),
-            nn.AdaptiveAvgPool1d(1),# 平均池化，降维
+        self.mlp_head = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(self.out_dim[0]*2, self.out_dim[0]),
-            # nn.LayerNorm(self.out_dim[1]),
-            nn.Sigmoid(),
+            nn.Dropout(ff_dropout),
+            nn.Linear(T * chs_num, class_num * 6),
+            nn.LayerNorm(class_num * 6),
+            nn.GELU(),
             nn.Dropout(0.5),
-            nn.Linear(self.out_dim[0], self.out_dim[1]),
-            nn.GELU()
+            nn.Linear(class_num * 6, class_num)
         )
 
-        # net = []
-        # net.append(self.spatial_block(chs_num, self.dropout_level))
-        # net.append(self.enhanced_block(self.F[0], self.F[1], self.dropout_level,
-        #                                1, 1))
-        #
-        # self.conv_layers = nn.Sequential(*net)
-
-        # SSVEPformer
-        self.subnetwork = SSVEPformer(out_dim = self.out_dim, depth=depth, attention_kernal_length=31, chs_num=chs_num, class_num=class_num,
-                                      dropout=ff_dropout)
 
         # 结果融合层
-        # self.fusion_layer = nn.Conv1d(2, 1, kernel_size=1)
-
-        # 全连接层融合
-        self.fully_connected = nn.Sequential(
-            nn.Linear(self.out_dim[1] * 2, class_num),
-            nn.LayerNorm(class_num),
-            nn.GELU()
-        )
-
+        self.fusion_layer = nn.Conv1d(2, 1, kernel_size=1)
 
     # 有两个子网络，一个子网络处理时间序列，一个子网络处理频谱序列
     def forward(self, x):
+
         # 处理时间序列
+        # 通过线性层对序列进行裁剪
+        # x_t = complex_spectrum_features(x, FFT_PARAMS=[Fs, ws])
+        # x_t = torch.from_numpy(x_t)
+        # x_t = x_t.to(x.device)
+        # x_t = torch.Tensor(x_t.squeeze(1))
+        # x_t = x_t.float()
+
         x_t = x
+        # x_t = self.conv_layers(x_t)
+        # 消除为1的维度
         x_t = x_t.squeeze(1)
         x_t = rearrange(x_t, 'b c t -> b t c')
         for attn, attn_post_norm, ff, ff_post_norm in self.attentionEncoder:
             x_t = attn(x_t) + x_t
             x_t = attn_post_norm(x_t)
             x_t = ff(x_t) + x_t
-            x_t = ff_post_norm(x_t) # (30, 256, 8)
-        x_t = rearrange(x_t, 'b t c -> b c t')
-        x_t = self.time_head(x_t) # (30, T // 8)
+            x_t = ff_post_norm(x_t)
 
-        # 处理频谱序列
-        x_fft = complex_spectrum_features(x, FFT_PARAMS=[Fs, ws])  # x:(30,1,8,256) x_fft:(30, 1, 8, 560)
+        # x_t = x_t.mean(dim=1)  # (30, 220)
+        # x_t = self.fc(x_t)  # (30, 12)
+        x_t = self.mlp_head(x_t)
 
-        # device = torch.device("cuda:0")
-        x_fft = torch.tensor(x_fft.squeeze(1), dtype=torch.float)
-        x_fft = x_fft.to(devices)
-        x_fft = self.subnetwork(x_fft)  # (30, T // 8)
-
-        # 融合两个子网络的结果
-        output = torch.cat((x_t, x_fft), 1) # (30, T // 4)
-        output = self.fully_connected(output)
-        return output
+        return x_t
