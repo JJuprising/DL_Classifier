@@ -1,4 +1,4 @@
-algorithm: TFformer2
+algorithm: TFformer3
 classes: 12 # 哪个分类数据 12-Dial 40-tsinghua
 
 # Parameters for training procedure
@@ -112,9 +112,16 @@ TFformer:
 
 TFformer2:
   epochs: 40                  # number of epochs
-  bz: 30                     # batch size
+  bz: 50                     # batch size
   lr: 0.002                       # learning rate
-  wd: 0.0001                   # weight decay
+  wd: 0.001                   # weight decay
+  lr_jitter: true             # learning rate scheduler
+
+TFformer3:
+  epochs: 20                  # number of epochs
+  bz: 50                     # batch size
+  lr: 0.002                       # learning rate
+  wd: 0.001                   # weight decay
   lr_jitter: true             # learning rate scheduler
 
 TFFBformer:

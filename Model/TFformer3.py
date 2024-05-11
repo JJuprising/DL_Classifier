@@ -12,7 +12,7 @@ from fightingcv_attention.attention.ECAAttention import ECAAttention
 from torch.nn import init
 
 from etc.global_config import config
-
+import torch.nn.functional as F
 devices = "cuda" if torch.cuda.is_available() else "cpu"
 ws = config["data_param_12"]["ws"]
 Fs = config["data_param_12"]["Fs"]
@@ -55,6 +55,38 @@ class Attention(nn.Module):
         out = torch.matmul(attn, v)  # out:(30, 8, 16, 8)
         out = rearrange(out, 'b h n d -> b n (h d)')  # out:(30, 16, 64)
         return self.to_out(out)  # out:(30, 16, 220)
+
+
+class CrossAttention(nn.Module):
+    def __init__(self, in_dim1, in_dim2, k_dim, v_dim, num_heads):
+        super(CrossAttention, self).__init__()
+        self.num_heads = num_heads
+        self.k_dim = k_dim
+        self.v_dim = v_dim
+
+        self.proj_q1 = nn.Linear(in_dim1, k_dim * num_heads, bias=False)
+        self.proj_k2 = nn.Linear(in_dim2, k_dim * num_heads, bias=False)
+        self.proj_v2 = nn.Linear(in_dim2, v_dim * num_heads, bias=False)
+        self.proj_o = nn.Linear(v_dim * num_heads, in_dim1)
+
+    def forward(self, x1, x2, mask=None):
+        batch_size, seq_len1, in_dim1 = x1.size()
+        seq_len2 = x2.size(1)
+
+        q1 = self.proj_q1(x1).view(batch_size, seq_len1, self.num_heads, self.k_dim).permute(0, 2, 1, 3) # (30, 8, 256, 8)
+        k2 = self.proj_k2(x2).view(batch_size, seq_len2, self.num_heads, self.k_dim).permute(0, 2, 3, 1) # (30, 8, 8, 560)
+        v2 = self.proj_v2(x2).view(batch_size, seq_len2, self.num_heads, self.v_dim).permute(0, 2, 1, 3) # (30, 8, 560, 8)
+
+        attn = torch.matmul(q1, k2) / self.k_dim ** 0.5  # matmul是矩阵相乘，q1:(30, 8, 256, 8) k2:(30, 8, 8, 560) attn:(30, 8, 256, 560)
+
+        if mask is not None:
+            attn = attn.masked_fill(mask == 0, -1e9)
+
+        attn = F.softmax(attn, dim=-1)
+        output = torch.matmul(attn, v2).permute(0, 2, 1, 3).contiguous().view(batch_size, seq_len1, -1)
+        output = self.proj_o(output) # (30, 256, 8)
+
+        return output
 
 
 class FeedForward(nn.Module):
@@ -183,10 +215,10 @@ class SSVEPformer(nn.Module):
         x = x.float()
         x = self.to_patch_embedding(x)
         x = self.transformer(x)
-        return self.mlp_head(x)
+        # return self.mlp_head(x)
+        return x
 
-
-class TFformer2(Module):
+class TFformer3(Module):
     def spatial_block(self, nChan, dropout_level):
         '''
            Spatial filter block,assign different weight to different channels and fuse them
@@ -221,10 +253,7 @@ class TFformer2(Module):
         # 时间序列的网络层
         self.attentionEncoder = ModuleList([])
         self.dropout_level = 0.5
-        # self.F = [chs_num * 2] + [chs_num * 4]
-        # self.K = 10
-        # self.S = 2
-        # self.cbam_block1 = CBAMBlock(channel=self.F[1], reduction=16, kernel_size=7)
+
         for _ in range(depth):
             self.attentionEncoder.append(ModuleList([
                 # ECAAttention(kernel_size=3),
@@ -236,27 +265,25 @@ class TFformer2(Module):
                 nn.LayerNorm(chs_num)
             ]))
 
+
+
         self.out_dim = [class_num * 4, class_num * 2]
         self.time_conv_kernel = 7
         self.time_conv_dim = T - self.time_conv_kernel + 1
         self.time_head = nn.Sequential(
-            nn.Conv1d(chs_num, self.out_dim[0], self.time_conv_kernel), #整合不同通道的特征
+            nn.Conv1d(chs_num, self.out_dim[0], self.time_conv_kernel),
             nn.GELU(),
             nn.AdaptiveAvgPool1d(1),# 平均池化，降维
             nn.Flatten(),
             nn.Linear(self.out_dim[0], self.out_dim[1]),
+            # nn.LayerNorm(self.out_dim[1]),
             nn.Sigmoid(),
             nn.Dropout(0.5),
             nn.Linear(self.out_dim[1], class_num),
             nn.GELU()
         )
 
-        # net = []
-        # net.append(self.spatial_block(chs_num, self.dropout_level))
-        # net.append(self.enhanced_block(self.F[0], self.F[1], self.dropout_level,
-        #                                1, 1))
-        #
-        # self.conv_layers = nn.Sequential(*net)
+
 
         # SSVEPformer
         self.subnetwork = SSVEPformer(out_dim = self.out_dim, depth=depth, attention_kernal_length=31, chs_num=chs_num, class_num=class_num,
@@ -272,6 +299,25 @@ class TFformer2(Module):
             nn.GELU()
         )
 
+        # 交叉注意力机制
+        self.crossAttentionEncoder = ModuleList([])
+        for _ in range(depth):
+            self.crossAttentionEncoder.append(ModuleList([
+                CrossAttention(chs_num*2, chs_num, 8, 8, 8),
+                nn.LayerNorm(chs_num*2),
+                FeedForward(chs_num*2, hidden_dim=16, dropout=ff_dropout),
+                nn.LayerNorm(chs_num*2)
+            ]))
+
+        self.mlp_head = nn.Sequential(
+            nn.Flatten(),
+            nn.Dropout(self.dropout_level),
+            nn.Linear(560 * chs_num*2, class_num * 6),
+            nn.LayerNorm(class_num * 6),
+            nn.GELU(),
+            nn.Dropout(0.5),
+            nn.Linear(class_num * 6, class_num)
+        )
 
     # 有两个子网络，一个子网络处理时间序列，一个子网络处理频谱序列
     def forward(self, x):
@@ -284,8 +330,8 @@ class TFformer2(Module):
             x_t = attn_post_norm(x_t)
             x_t = ff(x_t) + x_t
             x_t = ff_post_norm(x_t) # (30, 256, 8)
-        x_t = rearrange(x_t, 'b t c -> b c t')
-        x_t = self.time_head(x_t) # (30, T // 8)
+        # x_t = rearrange(x_t, 'b t c -> b c t')
+        # x_t = self.time_head(x_t) # (30, T // 8)
 
         # 处理频谱序列
         x_fft = complex_spectrum_features(x, FFT_PARAMS=[Fs, ws])  # x:(30,1,8,256) x_fft:(30, 1, 8, 560)
@@ -294,8 +340,14 @@ class TFformer2(Module):
         x_fft = torch.tensor(x_fft.squeeze(1), dtype=torch.float)
         x_fft = x_fft.to(devices)
         x_fft = self.subnetwork(x_fft)  # (30, T // 8)
+        x_fft = rearrange(x_fft, 'b c f -> b f c') # (30, 560, 16)
 
         # 融合两个子网络的结果
-        output = torch.cat((x_t, x_fft), 1) # (30, T // 4)
-        output = self.fully_connected(output)
+        for attn, attn_post_norm, ff, ff_post_norm in self.crossAttentionEncoder:
+            output = attn(x_fft, x_t) + x_fft
+            output = attn_post_norm(output)
+            output = ff(output) + output
+            output = ff_post_norm(output)
+
+        output = self.mlp_head(output)
         return output
