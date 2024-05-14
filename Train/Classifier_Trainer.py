@@ -3,6 +3,18 @@ import os
 
 import torch
 import time
+
+from tsnecuda import TSNE
+import matplotlib.pyplot as plt
+
+
+import numpy as np
+from sklearn.model_selection import train_test_split
+
+import matplotlib.pyplot as plt
+
+
+from Utils.utils import MOUSE_10X_COLORS
 from etc.global_config import config
 from tqdm import tqdm
 
@@ -72,6 +84,8 @@ def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criter
                     y = torch.as_tensor(y.reshape(y.shape[0]), dtype=torch.int64).to(device)
                     y_hat = net(X)
 
+
+
                 loss = criterion(y_hat, y).sum()
                 optimizer.zero_grad()
                 loss.backward()
@@ -86,6 +100,7 @@ def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criter
 
             train_loss = sum_loss / len(train_iter)
             train_acc = sum_acc / len(train_iter)
+
             # torch.save(net, f'../Result/classes_{config["classes"]}/{algorithm}/best_Weights_ws({config["data_param_12"]["ws"]}s)_UD({config["train_param"]["UD"]}).pkl')
             if lr_jitter and algorithm == "DDGCNN":
                 scheduler.step(train_acc)
@@ -109,7 +124,19 @@ def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criter
                         y_hat = net(X)
 
                     sum_acc += (y == y_hat.argmax(dim=-1)).float().mean()
-
+                tsne = TSNE(n_iter=1000, verbose=1, num_neighbors=64)
+                tsne_results = tsne.fit_transform(X.reshape(len(X), -1))
+                plt.figure(figsize=(8, 8))
+                plt.scatter(
+                    x=tsne_results[:, 0],
+                    y=tsne_results[:, 1],
+                    c=y.cpu().numpy(),
+                    cmap=plt.cm.get_cmap('Paired'),
+                    alpha=0.4,
+                    s=0.5
+                )
+                plt.title('TSNE')
+                plt.show()
                 val_acc = sum_acc / len(test_iter)
                 if val_acc > best_val_acc:
                     best_val_acc = val_acc
