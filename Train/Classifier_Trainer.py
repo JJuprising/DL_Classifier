@@ -5,6 +5,7 @@ import torch
 import time
 
 # from tsnecuda import TSNE
+from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 
 
@@ -133,7 +134,25 @@ def train_on_batch(subject, num_epochs, val_interval, train_iter, test_iter, opt
 
                     sum_acc += (y == y_hat.argmax(dim=-1)).float().mean()
                     sum_loss += criterion(y_hat, y).sum().item()
-                tsne = TSNE(n_iter=1000, verbose=1, num_neighbors=64)
+                # tsne = TSNE(n_iter=1000, verbose=1, num_neighbors=64)
+                # tsnecuda参数
+                n_iter = 1000
+                verbose = 1
+                num_neighbors = 64
+
+                # 使用sklearn.manifold.TSNE替换tsnecuda.TSNE
+                tsne = TSNE(
+                    n_components=2,  # 设置降维后的维度，默认为2
+                    perplexity=30.0,  # 设置困惑度，默认为30.0
+                    early_exaggeration=12.0,  # 设置早期的夸大，默认为12.0
+                    learning_rate=200.0,  # 设置学习率，默认为200.0
+                    n_iter=n_iter,  # 设置迭代次数，对应tsnecuda的n_iter
+                    metric='euclidean',  # 设置距离度量，默认为'euclidean'
+                    verbose=verbose,  # 设置是否输出详细信息，对应tsnecuda的verbose
+                    random_state=None,  # 设置随机数种子
+                    n_jobs=-1  # 设置使用的CPU核心数量，-1表示使用所有核心
+                )
+
                 tsne_results = tsne.fit_transform(X.reshape(len(X), -1))
                 plt.figure(figsize=(8, 8))
                 plt.scatter(
