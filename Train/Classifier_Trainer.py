@@ -4,8 +4,16 @@ import os
 import torch
 import time
 
-from matplotlib import pyplot as plt
+from tsnecuda import TSNE
+import matplotlib.pyplot as plt
 
+
+import numpy as np
+from sklearn.model_selection import train_test_split
+
+
+
+from Utils.utils import MOUSE_10X_COLORS
 from etc.global_config import config
 from tqdm import tqdm
 
@@ -82,6 +90,8 @@ def train_on_batch(subject, num_epochs, val_interval, train_iter, test_iter, opt
                     y = torch.as_tensor(y.reshape(y.shape[0]), dtype=torch.int64).to(device)
                     y_hat = net(X)
 
+
+
                 loss = criterion(y_hat, y).sum()
                 optimizer.zero_grad()
                 loss.backward()
@@ -123,6 +133,19 @@ def train_on_batch(subject, num_epochs, val_interval, train_iter, test_iter, opt
 
                     sum_acc += (y == y_hat.argmax(dim=-1)).float().mean()
                     sum_loss += criterion(y_hat, y).sum().item()
+                tsne = TSNE(n_iter=1000, verbose=1, num_neighbors=64)
+                tsne_results = tsne.fit_transform(X.reshape(len(X), -1))
+                plt.figure(figsize=(8, 8))
+                plt.scatter(
+                    x=tsne_results[:, 0],
+                    y=tsne_results[:, 1],
+                    c=y.cpu().numpy(),
+                    cmap=plt.cm.get_cmap('Paired'),
+                    alpha=0.4,
+                    s=0.5
+                )
+                plt.title('TSNE')
+                plt.show()                    
 
                 val_acc = sum_acc / len(test_iter)
                 val_loss = (sum_loss / len(test_iter))
