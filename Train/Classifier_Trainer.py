@@ -4,7 +4,7 @@ import os
 import torch
 import time
 
-from tsnecuda import TSNE
+# from tsnecuda import TSNE
 import matplotlib.pyplot as plt
 
 
@@ -13,7 +13,7 @@ from sklearn.model_selection import train_test_split
 
 
 
-from Utils.utils import MOUSE_10X_COLORS
+# from Utils.utils import MOUSE_10X_COLORS
 from etc.global_config import config
 from tqdm import tqdm
 
