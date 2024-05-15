@@ -284,38 +284,34 @@ class TFformer3(Module):
     def __init__(self, T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead=8, dim_fhead=8, dim=220):
         super().__init__()
         # 时间序列的网络层
+        self.F = [chs_num * 2] + [chs_num * 4]
+
+        self.K = 7
+        self.S = 2
+        output_dim = int((T - 1 * (self.K - 1) - 1) / self.S + 1)
+        # output_dim = token_dim
+
+        net = []
+        net.append(self.spatial_block(chs_num, ff_dropout))  # （30， 16， 1， 256）
+        net.append(self.enhanced_block(chs_num * 2, self.F[0], ff_dropout,
+                                       self.K, self.S))  # (30, 32, 1, 124)
+        self.conv_layers = nn.Sequential(*net)
+
         self.attentionEncoder = ModuleList([])
         self.dropout_level = 0.5
         # self.positional_encoder = PositionalEncoding(chs_num, T)
         # self.positional_encoder = AbsolutePositionalEncoding(chs_num, T)
+        self.rnn = nn.LSTM(input_size=self.F[0], hidden_size=self.F[1], bidirectional=True, num_layers=1, batch_first=True)
         for _ in range(depth):
             self.attentionEncoder.append(ModuleList([
                 # ECAAttention(kernel_size=3),
                 # SimplifiedScaledDotProductAttention(d_model=dim, h=8),
-                Attention(chs_num, dim_head=dim_thead, heads=heads, dropout=tt_dropout),
+                Attention(self.F[1]*2, dim_head=dim_thead, heads=heads, dropout=tt_dropout),
                 # Attention(token_num=self.F[0], token_length=self.F[1]),
-                nn.LayerNorm(chs_num),
-                FeedForward(chs_num, hidden_dim=dim_fhead, dropout=ff_dropout),
-                nn.LayerNorm(chs_num)
+                nn.LayerNorm(self.F[1]*2),
+                FeedForward(self.F[1]*2, hidden_dim=dim_fhead, dropout=ff_dropout),
+                nn.LayerNorm(self.F[1]*2)
             ]))
-
-
-
-        self.out_dim = [class_num * 4, class_num * 2]
-        self.time_conv_kernel = 7
-        self.time_conv_dim = T - self.time_conv_kernel + 1
-        self.time_head = nn.Sequential(
-            nn.Conv1d(chs_num, self.out_dim[0], self.time_conv_kernel),
-            nn.GELU(),
-            nn.AdaptiveAvgPool1d(1),# 平均池化，降维
-            nn.Flatten(),
-            nn.Linear(self.out_dim[0], self.out_dim[1]),
-            # nn.LayerNorm(self.out_dim[1]),
-            nn.Sigmoid(),
-            nn.Dropout(0.5),
-            nn.Linear(self.out_dim[1], class_num),
-            nn.GELU()
-        )
 
 
 
@@ -323,24 +319,24 @@ class TFformer3(Module):
         self.subnetwork = SSVEPformer(out_dim = self.out_dim, depth=depth, attention_kernal_length=31, chs_num=chs_num, class_num=class_num,
                                       dropout=ff_dropout)
 
-        # 结果融合层
-        # self.fusion_layer = nn.Conv1d(2, 1, kernel_size=1)
-
-        # 全连接层融合
-        self.fully_connected = nn.Sequential(
-            nn.Linear(self.out_dim[1] + class_num, class_num),
-            nn.LayerNorm(class_num),
-            nn.GELU()
-        )
 
         # 交叉注意力机制
         self.crossAttentionEncoder = ModuleList([])
-        for _ in range(depth):
+        for _ in range(2):
             self.crossAttentionEncoder.append(ModuleList([
-                CrossAttention(chs_num*2, chs_num, 8, 8, 8),
+                CrossAttention(chs_num*2, self.F[1]*2, 8, 8, 8),
                 nn.LayerNorm(chs_num*2),
                 FeedForward(chs_num*2, hidden_dim=16, dropout=ff_dropout),
                 nn.LayerNorm(chs_num*2)
+            ]))
+
+        self.crossAttentionEncoder2 = ModuleList([])
+        for _ in range(2):
+            self.crossAttentionEncoder2.append(ModuleList([
+                CrossAttention(self.F[1] * 2, chs_num * 2, 8, 8, 8),
+                nn.LayerNorm(self.F[1] * 2),
+                FeedForward(self.F[1] * 2, hidden_dim=16, dropout=ff_dropout),
+                nn.LayerNorm(self.F[1] * 2)
             ]))
 
         self.mlp_head = nn.Sequential(
@@ -353,14 +349,28 @@ class TFformer3(Module):
             nn.Linear(class_num * 6, class_num)
         )
 
+        self.mlp_head2 = nn.Sequential(
+            nn.Flatten(),
+            nn.Dropout(self.dropout_level),
+            nn.Linear(output_dim * self.F[1] * 2, class_num * 6),
+            nn.LayerNorm(class_num * 6),
+            nn.GELU(),
+            nn.Dropout(0.5),
+            nn.Linear(class_num * 6, class_num)
+        )
+
+        self.fusion_layer = nn.Conv1d(2, 1, kernel_size=1)
+
     # 有两个子网络，一个子网络处理时间序列，一个子网络处理频谱序列
     def forward(self, x):
         # 处理时间序列
         x_t = x
         x_t = x_t.squeeze(1)
+        x_t = self.conv_layers(x_t) # (bt, self.F[0], 1, 124)
+        x_t = x_t.squeeze(2)
         x_t = rearrange(x_t, 'b c t -> b t c')
-        # 使用位置编码
-        # x_t = self.positional_encoder(x_t)
+        # 使用lstm处理时间序列
+        x_t, _ = self.rnn(x_t) # (30, 124, self.F[1] * 2)
         for attn, attn_post_norm, ff, ff_post_norm in self.attentionEncoder:
             x_t = attn(x_t) + x_t
             x_t = attn_post_norm(x_t)
@@ -379,11 +389,37 @@ class TFformer3(Module):
         x_fft = rearrange(x_fft, 'b c f -> b f c') # (30, 560, 16)
 
         # 融合两个子网络的结果
-        for attn, attn_post_norm, ff, ff_post_norm in self.crossAttentionEncoder:
-            output = attn(x_fft, x_t) + x_fft
-            output = attn_post_norm(output)
-            output = ff(output) + output
-            output = ff_post_norm(output)
+        for attn, attn_post_norm, ff, ff_post_norm in self.crossAttentionEncoder[0]:
+            x_fft = attn(x_fft, x_t) + x_fft
+            x_fft = attn_post_norm(x_fft)
+            x_fft = ff(x_fft) + x_fft
+            x_fft = ff_post_norm(x_fft)
 
-        output = self.mlp_head(output)
+
+
+        for attn, attn_post_norm, ff, ff_post_norm in self.crossAttentionEncoder2[0]:
+            x_t = attn(x_t, x_fft) + x_t
+            x_t = attn_post_norm(x_t)
+            x_t = ff(x_t) + x_t
+            x_t = ff_post_norm(x_t)
+
+        for attn, attn_post_norm, ff, ff_post_norm in self.crossAttentionEncoder[1]:
+            x_fft = attn(x_fft, x_t) + x_fft
+            x_fft = attn_post_norm(x_fft)
+            x_fft = ff(x_fft) + x_fft
+            x_fft = ff_post_norm(x_fft)
+
+        for attn, attn_post_norm, ff, ff_post_norm in self.crossAttentionEncoder2[1]:
+            x_t = attn(x_t, x_fft) + x_t
+            x_t = attn_post_norm(x_t)
+            x_t = ff(x_t) + x_t
+            x_t = ff_post_norm(x_t)
+
+        x_fft = self.mlp_head(x_fft)  # (30, 12)
+        x_t = self.mlp_head2(x_t) # (30, 12)
+
+        # 将x_t和x_fft融合
+        # 拼接x_t和x_fft为(30, 2, 12)
+        output = torch.stack([x_t, x_fft], dim=1)
+        output = self.fusion_layer(output).squeeze(1)
         return output

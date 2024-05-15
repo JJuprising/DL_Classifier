@@ -3,11 +3,15 @@ import os
 
 import torch
 import time
+
+from matplotlib import pyplot as plt
+
 from etc.global_config import config
 from tqdm import tqdm
 
 
-def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criterion, net, device, lr_jitter=False):
+
+def train_on_batch(subject, num_epochs, val_interval, train_iter, test_iter, optimizer, criterion, net, device, lr_jitter=False):
     algorithm = config['algorithm']
     width = []
     kan_array = ['KANformer', 'SSVEPformer3']
@@ -22,17 +26,18 @@ def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criter
                                                                eta_min=5e-6)
     best_val_acc = 0.0
 
+
     if algorithm in kan_array:
         width = config[algorithm]['width']
         # 创建结果保存目录
-        dir_path = f'../Result/classes_{config["classes"]}/{algorithm}/{str(width)}'
+        dir_path = f'../Result/classes_{config["classes"]}/{algorithm}/{str(width)}/pic'
         print(dir_path)
         os.makedirs(dir_path, exist_ok=True)
         # 打开csv文件
         csv_path = f'../Result/classes_{config["classes"]}/{algorithm}/{str(width)}/subject_{subject}_ws({config["data_param_12"]["ws"]}s)_UD({config["train_param"]["UD"]})_width({width}).csv'
     else:
         # 创建结果保存目录
-        dir_path = f'../Result/classes_{config["classes"]}/{algorithm}'
+        dir_path = f'../Result/classes_{config["classes"]}/{algorithm}/pic'
         print(dir_path)
         os.makedirs(dir_path, exist_ok=True)
         # 打开csv文件
@@ -52,6 +57,11 @@ def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criter
             for i, subnetwork in enumerate(net.subnetworks):
                 train_subnetwork(i, 100, train_iter, test_iter, criterion, subnetwork, device, lr_jitter)
 
+        # 用于存储每个 epoch 的训练和验证准确度及损失
+        train_accuracies = []
+        train_losses = []
+        val_accuracies = []
+        val_losses = []
         for epoch in range(num_epochs):
             # ==================================training procedure==========================================================
             net.train()
@@ -85,15 +95,18 @@ def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criter
                 progress_bar.set_postfix({'loss': sum_loss / (batch_idx + 1), 'acc': sum_acc / (batch_idx + 1)})
 
             train_loss = sum_loss / len(train_iter)
-            train_acc = sum_acc / len(train_iter)
+            train_acc = (sum_acc / len(train_iter)).item()
+            train_accuracies.append(train_acc)
+            train_losses.append(train_loss)
             # torch.save(net, f'../Result/classes_{config["classes"]}/{algorithm}/best_Weights_ws({config["data_param_12"]["ws"]}s)_UD({config["train_param"]["UD"]}).pkl')
             if lr_jitter and algorithm == "DDGCNN":
                 scheduler.step(train_acc)
             # print(f"epoch{epoch + 1}, train_loss={train_loss:.3f}, train_acc={train_acc:.3f}")
             # ==================================testing procedure==========================================================
-            if epoch == num_epochs - 1 or (epoch + 1) % 10 == 0:
+            if epoch == num_epochs - 1 or (epoch + 1) % val_interval == 0:
                 net.eval()
                 sum_acc = 0.0
+                sum_loss = 0.0
                 for data in test_iter:
                     if algorithm == "ConvCA":
                         X, temp, y = data
@@ -109,8 +122,12 @@ def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criter
                         y_hat = net(X)
 
                     sum_acc += (y == y_hat.argmax(dim=-1)).float().mean()
+                    sum_loss += criterion(y_hat, y).sum().item()
 
                 val_acc = sum_acc / len(test_iter)
+                val_loss = (sum_loss / len(test_iter))
+                val_accuracies.append(val_acc.item())
+                val_losses.append(val_loss)
                 if val_acc > best_val_acc:
                     best_val_acc = val_acc
                     if algorithm in kan_array:
@@ -123,6 +140,7 @@ def train_on_batch(subject, num_epochs, train_iter, test_iter, optimizer, criter
                 writer.writerow({'subject': subject, 'epoch': epoch + 1, 'val_acc': "%.4f" % val_acc.cpu().data.item()})
                 csvfile.flush()
                 print(f"epoch{epoch + 1}, val_acc={val_acc:.3f}")
+    draw_cur(subject, dir_path, train_accuracies, val_accuracies, train_losses, val_losses, num_epochs, val_interval)
     print(
         f'subject_{subject} ,training finished at {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} with final_valid_acc={val_acc:.3f}')
     if algorithm in kan_array:
@@ -197,4 +215,27 @@ def train_subnetwork(subject, num_epochs, train_iter, test_iter, criterion, net,
     print(
         f'subNetwork_{subject + 1} ,training finished at {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} with final_valid_acc={val_acc:.4f}')
 
+def draw_cur(subject, dir_path, train_accuracies, val_accuracies, train_losses, val_losses, num_epochs, val_interval=1):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+    # print(train_accuracies)
+    # print(val_accuracies)
+    # print(train_losses)
+    # print(val_losses)
+    ax1.plot(range(1, num_epochs + 1), train_accuracies, label='Training Accuracy')
+    ax1.plot(range(val_interval, num_epochs + 1, val_interval), val_accuracies, label='Validation Accuracy', color='blue')
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Accuracy")
+    ax1.set_title("Epoch vs Accuracy")
+    ax1.legend()
 
+    ax2.plot(range(1, num_epochs + 1), train_losses, label='Training Loss', color='orange')
+    ax2.plot(range(val_interval, num_epochs + 1, val_interval), val_losses, label='Validation Loss', color='red')
+    ax2.set_xlabel("Epoch")
+    ax2.set_ylabel("Loss")
+    ax2.set_title("Epoch vs Loss")
+    ax2.legend()
+
+    # 保存图表到文件
+    plot_path = os.path.join(dir_path, f'training_results_{subject}.png')
+    plt.savefig(plot_path)
+    plt.close()

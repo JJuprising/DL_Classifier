@@ -1,4 +1,4 @@
-algorithm: TFformer3
+algorithm: TFformer4
 classes: 12 # 哪个分类数据 12-Dial 40-tsinghua
 
 # Parameters for training procedure
@@ -25,6 +25,7 @@ data_param_40:
   Ns: 35                       # number of subjects
 
 # Parameters for DL-based methods
+# 在bz时需要被trails整除，否则就无法充分利用数据
 EEGNet:
   epochs: 500                  # number of epochs
   bz: 30                     # batch size
@@ -119,7 +120,14 @@ TFformer2:
 
 TFformer3:
   epochs: 20                  # number of epochs
-  bz: 50                     # batch size
+  bz: 60                     # batch size
+  lr: 0.002                       # learning rate
+  wd: 0.001                   # weight decay
+  lr_jitter: true             # learning rate scheduler
+
+TFformer4:
+  epochs: 20                  # number of epochs
+  bz: 60                     # batch size
   lr: 0.002                       # learning rate
   wd: 0.001                   # weight decay
   lr_jitter: true             # learning rate scheduler
@@ -132,6 +140,20 @@ TFFBformer:
   lr_jitter: true             # learning rate scheduler
 
 iTransformer:
+  epochs: 40                  # number of epochs
+  bz: 30                     # batch size
+  lr: 0.001                       # learning rate
+  wd: 0.001                   # weight decay
+  lr_jitter: true             # learning rate scheduler
+
+ALSTM_FCN:
+  epochs: 40                  # number of epochs
+  bz: 30                     # batch size
+  lr: 0.001                       # learning rate
+  wd: 0.001                   # weight decay
+  lr_jitter: true             # learning rate scheduler
+
+TodyNet:
   epochs: 40                  # number of epochs
   bz: 30                     # batch size
   lr: 0.001                       # learning rate

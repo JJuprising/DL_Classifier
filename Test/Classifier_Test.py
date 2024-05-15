@@ -51,6 +51,12 @@ def run():
 
     devices = "cuda" if torch.cuda.is_available() else "cpu"
 
+    # 进行数据加载
+    if UD == 1 and classes == 40:
+        dataloader = EEGDataset.getSSVEP40Inter()
+    if UD == 1 and classes == 12:
+        dataloader = EEGDataset.getSSVEP12Inter()
+
     # 2、Start Training
     final_acc_list = []
     for i in range(1):
@@ -79,9 +85,11 @@ def run():
                     EEGData_Test = EEGDataset.getSSVEP12Intra(subject=testSubject, train_ratio=train_radio, mode='test')
                 # -----------12classes Inter-Subject Experiments--------------
                 elif UD == 1:
-                    EEGData_Train = EEGDataset.getSSVEP12Inter(subject=testSubject,
-                                                               mode='train')
-                    EEGData_Test = EEGDataset.getSSVEP12Inter(subject=testSubject, mode='test')
+                    # EEGData_Train = EEGDataset.getSSVEP12Inter(subject=testSubject,
+                    #                                            mode='train')
+                    # EEGData_Test = EEGDataset.getSSVEP12Inter(subject=testSubject, mode='test')
+                    EEGData_Train = dataloader.get_subject_data(subject=testSubject, mode='train')
+                    EEGData_Test = dataloader.get_subject_data(subject=testSubject, mode='test')
             # -----------40classes  Experiments--------------
             elif classes == 40:
                 # -----------40classes Intra-Subject Experiments--------------
@@ -91,15 +99,17 @@ def run():
                     EEGData_Test = EEGDataset.getSSVEP40Intra(subject=testSubject, train_ratio=train_radio, mode='test')
                 # -----------40classes Inter-Subject Experiments--------------
                 elif UD == 1:
-                    EEGData_Train = EEGDataset.getSSVEP40Inter(subject=testSubject,
-                                                               mode='train')
-                    EEGData_Test = EEGDataset.getSSVEP40Inter(subject=testSubject, mode='test')
+                    # EEGData_Train = EEGDataset.getSSVEP40Inter(subject=testSubject,
+                    #                                            mode='train')
+                    # EEGData_Test = EEGDataset.getSSVEP40Inter(subject=testSubject, mode='test')
+                    EEGData_Train = dataloader.get_subject_data(subject=testSubject, mode='train')
+                    EEGData_Test = dataloader.get_subject_data(subject=testSubject, mode='test')
 
             eeg_train_dataloader, eeg_test_dataloader = Trainer_Script.data_preprocess(EEGData_Train, EEGData_Test)
 
             # Define Network
             net, criterion, optimizer = Trainer_Script.build_model(devices)
-            test_acc = Classifier_Trainer.train_on_batch(testSubject, epochs, eeg_train_dataloader, eeg_test_dataloader,
+            test_acc = Classifier_Trainer.train_on_batch(testSubject, epochs, 1,eeg_train_dataloader, eeg_test_dataloader,
                                                          optimizer,
                                                          criterion,
                                                          net, devices, lr_jitter=lr_jitter)
@@ -109,7 +119,7 @@ def run():
 
         if algorithm in kan_array:
             algorithm = algorithm + '/' + str(config[algorithm]['width'])
-        Ploter.plot_save_Result(final_acc_list, model_name=algorithm, dataset='classes_12', UD=UD, ratio=ratio,
+        Ploter.plot_save_Result(final_acc_list, model_name=algorithm, dataset='classes_'+str(classes), UD=UD, ratio=ratio,
                                 win_size=str(ws), text=True)
 
     # print(final_acc_list)

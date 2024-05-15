@@ -6,7 +6,7 @@ import torch
 from torch import nn
 
 from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer, FBSSVEPformer, \
-    TFformer2, TFformer3
+    TFformer2, TFformer3, ALSTM_FCN, TodyNet
 
 from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CNNAttentionGRU, \
     CNNAttentionMLP, CACAM, CACAMNew, PSDCNN, CAIFormerNew, TFformer, iTransformer, KANformer, TFFBformer, SSVEPformer2, SSVEPformer3
@@ -276,10 +276,34 @@ def build_model(devices):
                                 T=Nt)
         net = Constraint.Spectral_Normalization(net)
 
+    elif algorithm == "TFformer4":
+        net = TFformer3.TFformer3(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,
+                                T=Nt)
+        net = Constraint.Spectral_Normalization(net)
+
     elif algorithm == "TFFBformer":
         net = TFFBformer.TFFBformer(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,
                                 T=Nt)
         net = Constraint.Spectral_Normalization(net)
+
+    elif algorithm == "ALSTM_FCN":
+        net = ALSTM_FCN.ALSTM_FCN(Nf, Nc, Nt)
+        net = Constraint.Spectral_Normalization(net)
+
+    elif algorithm == 'TodyNet':
+        net = TodyNet.GNNStack(
+                gnn_model_type='dyGIN2d',
+                num_layers=4,
+                groups=8,
+                pool_ratio=0.5,
+                kern_size=[9, 7, 5, 3],
+                in_dim=128,
+                hidden_dim=128,
+                out_dim=256,
+                seq_len=Nt,
+                num_nodes=Nc,
+                num_classes=Nf
+            )
 
     elif algorithm == "iTransformer":
         net = iTransformer.iTransformer(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,

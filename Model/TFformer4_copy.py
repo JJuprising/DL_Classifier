@@ -284,38 +284,34 @@ class TFformer3(Module):
     def __init__(self, T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead=8, dim_fhead=8, dim=220):
         super().__init__()
         # 时间序列的网络层
+        self.F = [chs_num * 2] + [chs_num * 4]
+
+        self.K = 7
+        self.S = 2
+        output_dim = int((T - 1 * (self.K - 1) - 1) / self.S + 1)
+        # output_dim = token_dim
+
+        net = []
+        net.append(self.spatial_block(chs_num, ff_dropout))  # （30， 16， 1， 256）
+        net.append(self.enhanced_block(chs_num * 2, self.F[0], ff_dropout,
+                                       self.K, self.S))  # (30, 32, 1, 124)
+        self.conv_layers = nn.Sequential(*net)
+
         self.attentionEncoder = ModuleList([])
         self.dropout_level = 0.5
         # self.positional_encoder = PositionalEncoding(chs_num, T)
         # self.positional_encoder = AbsolutePositionalEncoding(chs_num, T)
+        self.rnn = nn.LSTM(input_size=self.F[0], hidden_size=self.F[1], bidirectional=True, num_layers=1, batch_first=True)
         for _ in range(depth):
             self.attentionEncoder.append(ModuleList([
                 # ECAAttention(kernel_size=3),
                 # SimplifiedScaledDotProductAttention(d_model=dim, h=8),
-                Attention(chs_num, dim_head=dim_thead, heads=heads, dropout=tt_dropout),
+                Attention(self.F[1]*2, dim_head=dim_thead, heads=heads, dropout=tt_dropout),
                 # Attention(token_num=self.F[0], token_length=self.F[1]),
-                nn.LayerNorm(chs_num),
-                FeedForward(chs_num, hidden_dim=dim_fhead, dropout=ff_dropout),
-                nn.LayerNorm(chs_num)
+                nn.LayerNorm(self.F[1]*2),
+                FeedForward(self.F[1]*2, hidden_dim=dim_fhead, dropout=ff_dropout),
+                nn.LayerNorm(self.F[1]*2)
             ]))
-
-
-
-        self.out_dim = [class_num * 4, class_num * 2]
-        self.time_conv_kernel = 7
-        self.time_conv_dim = T - self.time_conv_kernel + 1
-        self.time_head = nn.Sequential(
-            nn.Conv1d(chs_num, self.out_dim[0], self.time_conv_kernel),
-            nn.GELU(),
-            nn.AdaptiveAvgPool1d(1),# 平均池化，降维
-            nn.Flatten(),
-            nn.Linear(self.out_dim[0], self.out_dim[1]),
-            # nn.LayerNorm(self.out_dim[1]),
-            nn.Sigmoid(),
-            nn.Dropout(0.5),
-            nn.Linear(self.out_dim[1], class_num),
-            nn.GELU()
-        )
 
 
 
@@ -323,21 +319,12 @@ class TFformer3(Module):
         self.subnetwork = SSVEPformer(out_dim = self.out_dim, depth=depth, attention_kernal_length=31, chs_num=chs_num, class_num=class_num,
                                       dropout=ff_dropout)
 
-        # 结果融合层
-        # self.fusion_layer = nn.Conv1d(2, 1, kernel_size=1)
-
-        # 全连接层融合
-        self.fully_connected = nn.Sequential(
-            nn.Linear(self.out_dim[1] + class_num, class_num),
-            nn.LayerNorm(class_num),
-            nn.GELU()
-        )
 
         # 交叉注意力机制
         self.crossAttentionEncoder = ModuleList([])
         for _ in range(depth):
             self.crossAttentionEncoder.append(ModuleList([
-                CrossAttention(chs_num*2, chs_num, 8, 8, 8),
+                CrossAttention(chs_num*2, self.F[1]*2, 8, 8, 8),
                 nn.LayerNorm(chs_num*2),
                 FeedForward(chs_num*2, hidden_dim=16, dropout=ff_dropout),
                 nn.LayerNorm(chs_num*2)
@@ -358,9 +345,11 @@ class TFformer3(Module):
         # 处理时间序列
         x_t = x
         x_t = x_t.squeeze(1)
+        x_t = self.conv_layers(x_t) # (bt, self.F[0], 1, 124)
+        x_t = x_t.squeeze(2)
         x_t = rearrange(x_t, 'b c t -> b t c')
-        # 使用位置编码
-        # x_t = self.positional_encoder(x_t)
+        # 使用lstm处理时间序列
+        x_t, _ = self.rnn(x_t) # (30, 124, self.F[1] * 2)
         for attn, attn_post_norm, ff, ff_post_norm in self.attentionEncoder:
             x_t = attn(x_t) + x_t
             x_t = attn_post_norm(x_t)
