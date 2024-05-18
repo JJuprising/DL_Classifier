@@ -76,8 +76,9 @@ def train_on_batch(subject, num_epochs, val_interval, train_iter, test_iter, opt
             net.train()
             sum_loss = 0.0
             sum_acc = 0.0
-            progress_bar = tqdm(enumerate(train_iter), total=len(train_iter), desc=f'Epoch {epoch + 1}/{num_epochs}')
-            for batch_idx, data in progress_bar:
+            # progress_bar = tqdm(enumerate(train_iter), total=len(train_iter), desc=f'Epoch {epoch + 1}/{num_epochs}')
+            # for batch_idx, data in progress_bar:
+            for batch_idx, data in enumerate(train_iter): # 取消进度条
                 if algorithm == "ConvCA":
                     X, temp, y = data
                     X = X.type(torch.FloatTensor).to(device)
@@ -103,7 +104,8 @@ def train_on_batch(subject, num_epochs, val_interval, train_iter, test_iter, opt
                 sum_acc += (y == y_hat.argmax(dim=-1)).float().mean()
 
                 # Update progress bar description
-                progress_bar.set_postfix({'loss': sum_loss / (batch_idx + 1), 'acc': sum_acc / (batch_idx + 1)})
+                # progress_bar.set_postfix({'loss': sum_loss / (batch_idx + 1), 'acc': sum_acc / (batch_idx + 1)})
+
 
             train_loss = sum_loss / len(train_iter)
             train_acc = (sum_acc / len(train_iter)).item()
@@ -140,31 +142,31 @@ def train_on_batch(subject, num_epochs, val_interval, train_iter, test_iter, opt
                 verbose = 1
                 num_neighbors = 64
 
-                # 使用sklearn.manifold.TSNE替换tsnecuda.TSNE
-                tsne = TSNE(
-                    n_components=2,  # 设置降维后的维度，默认为2
-                    perplexity=30.0,  # 设置困惑度，默认为30.0
-                    early_exaggeration=12.0,  # 设置早期的夸大，默认为12.0
-                    learning_rate=200.0,  # 设置学习率，默认为200.0
-                    n_iter=n_iter,  # 设置迭代次数，对应tsnecuda的n_iter
-                    metric='euclidean',  # 设置距离度量，默认为'euclidean'
-                    verbose=verbose,  # 设置是否输出详细信息，对应tsnecuda的verbose
-                    random_state=None,  # 设置随机数种子
-                    n_jobs=-1  # 设置使用的CPU核心数量，-1表示使用所有核心
-                )
-
-                tsne_results = tsne.fit_transform(X.reshape(len(X), -1))
-                plt.figure(figsize=(8, 8))
-                plt.scatter(
-                    x=tsne_results[:, 0],
-                    y=tsne_results[:, 1],
-                    c=y.cpu().numpy(),
-                    cmap=plt.cm.get_cmap('Paired'),
-                    alpha=0.4,
-                    s=0.5
-                )
-                plt.title('TSNE')
-                plt.show()                    
+                # # 使用sklearn.manifold.TSNE替换tsnecuda.TSNE
+                # tsne = TSNE(
+                #     n_components=2,  # 设置降维后的维度，默认为2
+                #     perplexity=30.0,  # 设置困惑度，默认为30.0
+                #     early_exaggeration=12.0,  # 设置早期的夸大，默认为12.0
+                #     learning_rate=200.0,  # 设置学习率，默认为200.0
+                #     n_iter=n_iter,  # 设置迭代次数，对应tsnecuda的n_iter
+                #     metric='euclidean',  # 设置距离度量，默认为'euclidean'
+                #     verbose=verbose,  # 设置是否输出详细信息，对应tsnecuda的verbose
+                #     random_state=None,  # 设置随机数种子
+                #     n_jobs=-1  # 设置使用的CPU核心数量，-1表示使用所有核心
+                # )
+                #
+                # tsne_results = tsne.fit_transform(X.reshape(len(X), -1))
+                # plt.figure(figsize=(8, 8))
+                # plt.scatter(
+                #     x=tsne_results[:, 0],
+                #     y=tsne_results[:, 1],
+                #     c=y.cpu().numpy(),
+                #     cmap=plt.cm.get_cmap('Paired'),
+                #     alpha=0.4,
+                #     s=0.5
+                # )
+                # plt.title('TSNE')
+                # plt.show()
 
                 val_acc = sum_acc / len(test_iter)
                 val_loss = (sum_loss / len(test_iter))
@@ -181,7 +183,7 @@ def train_on_batch(subject, num_epochs, val_interval, train_iter, test_iter, opt
                 # 只保留四位小数的精度
                 writer.writerow({'subject': subject, 'epoch': epoch + 1, 'val_acc': "%.4f" % val_acc.cpu().data.item()})
                 csvfile.flush()
-                print(f"epoch{epoch + 1}, val_acc={val_acc:.3f}")
+                print(f"epoch{epoch + 1}, val_acc={val_acc:.3f}, val_loss={val_loss:.3f},train_acc={train_acc:.3f},train_loss={train_loss:.3f}")
     draw_cur(subject, dir_path, train_accuracies, val_accuracies, train_losses, val_losses, num_epochs, val_interval)
     print(
         f'subject_{subject} ,training finished at {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} with final_valid_acc={val_acc:.3f}')

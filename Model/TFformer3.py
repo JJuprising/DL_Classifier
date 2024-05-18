@@ -13,8 +13,6 @@ from torch.nn import init
 
 from etc.global_config import config
 import torch.nn.functional as F
-
-from Utils.PositionEmbding import RoPEattention
 devices = "cuda" if torch.cuda.is_available() else "cpu"
 ws = config["data_param_12"]["ws"]
 Fs = config["data_param_12"]["Fs"]
@@ -71,23 +69,18 @@ class Attention(nn.Module):
     def forward(self, x):
         qkv = self.to_qkv(x).chunk(3,
                                    dim=-1)  # x:(30, 16, 220) qkv:(tuple:3)[0:(30, 16, 64),1:(30, 16, 64),2:(30, 16, 64)]
-        q, k, v = map(lambda t: rearrange(t, 'b t (h d) -> b h t d', h=self.heads),
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads),
                       qkv)  # q:(30, 8, 16, 8) (batch_size, channels, heads * dim_head)
 
-        # # 点乘操作
-        # dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale  # dots:(30, 8, 16, 16)
-        #
-        # attn = self.attend(dots)  # attn:(30, 8, 16, 16)
-        # attn = self.dropout(attn)
-        #
-        # out = torch.matmul(attn, v)  # out:(30, 8, 16, 8)
-        # out = rearrange(out, 'b h n d -> b n (h d)')  # out:(30, 16, 64)
-        # return self.to_out(out)  # out:(30, 16, 220)
+        # 点乘操作
+        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale  # dots:(30, 8, 16, 16)
 
-        res, att_scores = RoPEattention(q, k, v, mask=None, dropout=self.dropout)
-        out = rearrange(res, 'b h t d -> b t (h d)')  # out:(30, 16, 64)
+        attn = self.attend(dots)  # attn:(30, 8, 16, 16)
+        attn = self.dropout(attn)
+
+        out = torch.matmul(attn, v)  # out:(30, 8, 16, 8)
+        out = rearrange(out, 'b h n d -> b n (h d)')  # out:(30, 16, 64)
         return self.to_out(out)  # out:(30, 16, 220)
-
 
 
 class CrossAttention(nn.Module):
@@ -229,15 +222,15 @@ class SSVEPformer(nn.Module):
 
         self.transformer = convTransformer(depth, token_num, token_dim, attention_kernal_length, dropout)
 
-        self.mlp_head = nn.Sequential(
-            nn.Flatten(),
-            nn.Dropout(dropout),
-            nn.Linear(token_dim * token_num, out_dim[0]),
-            nn.LayerNorm(out_dim[0]),
-            nn.GELU(),
-            nn.Dropout(0.5),
-            nn.Linear(out_dim[0], out_dim[1])
-        )
+        # self.mlp_head = nn.Sequential(
+        #     nn.Flatten(),
+        #     nn.Dropout(dropout),
+        #     nn.Linear(token_dim * token_num, out_dim[0]),
+        #     nn.LayerNorm(out_dim[0]),
+        #     nn.GELU(),
+        #     nn.Dropout(0.5),
+        #     nn.Linear(out_dim[0], out_dim[1])
+        # )
 
         for m in self.modules():
             if isinstance(m, (nn.Conv1d, nn.Linear)):
@@ -283,6 +276,7 @@ class TFformer3(Module):
 
     def __init__(self, T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead=8, dim_fhead=8, dim=220):
         super().__init__()
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         # 时间序列的网络层
         self.attentionEncoder = ModuleList([])
         self.dropout_level = 0.5
@@ -298,6 +292,7 @@ class TFformer3(Module):
                 FeedForward(chs_num, hidden_dim=dim_fhead, dropout=ff_dropout),
                 nn.LayerNorm(chs_num)
             ]))
+            self.attentionEncoder.to(device)
 
 
 
@@ -316,12 +311,14 @@ class TFformer3(Module):
             nn.Linear(self.out_dim[1], class_num),
             nn.GELU()
         )
+        self.time_head.to(device)
 
 
 
         # SSVEPformer
         self.subnetwork = SSVEPformer(out_dim = self.out_dim, depth=depth, attention_kernal_length=31, chs_num=chs_num, class_num=class_num,
                                       dropout=ff_dropout)
+        self.subnetwork.to(device)
 
         # 结果融合层
         # self.fusion_layer = nn.Conv1d(2, 1, kernel_size=1)
@@ -331,17 +328,17 @@ class TFformer3(Module):
             nn.Linear(self.out_dim[1] + class_num, class_num),
             nn.LayerNorm(class_num),
             nn.GELU()
-        )
+        ).to(device)
 
         # 交叉注意力机制
         self.crossAttentionEncoder = ModuleList([])
-        for _ in range(depth):
+        for _ in range(1):
             self.crossAttentionEncoder.append(ModuleList([
                 CrossAttention(chs_num*2, chs_num, 8, 8, 8),
                 nn.LayerNorm(chs_num*2),
                 FeedForward(chs_num*2, hidden_dim=16, dropout=ff_dropout),
                 nn.LayerNorm(chs_num*2)
-            ]))
+            ]).to(device))
 
         self.mlp_head = nn.Sequential(
             nn.Flatten(),
@@ -351,7 +348,7 @@ class TFformer3(Module):
             nn.GELU(),
             nn.Dropout(0.5),
             nn.Linear(class_num * 6, class_num)
-        )
+        ).to(device)
 
     # 有两个子网络，一个子网络处理时间序列，一个子网络处理频谱序列
     def forward(self, x):
@@ -379,8 +376,9 @@ class TFformer3(Module):
         x_fft = rearrange(x_fft, 'b c f -> b f c') # (30, 560, 16)
 
         # 融合两个子网络的结果
+        output = x_fft
         for attn, attn_post_norm, ff, ff_post_norm in self.crossAttentionEncoder:
-            output = attn(x_fft, x_t) + x_fft
+            output = attn(output, x_t) + output
             output = attn_post_norm(output)
             output = ff(output) + output
             output = ff_post_norm(output)

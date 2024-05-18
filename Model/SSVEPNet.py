@@ -26,7 +26,8 @@ class ESNet(nn.Module):
             Calculate the output based on input size
             model is from nn.Module and inputSize is a array
         '''
-        data = torch.randn(1, 1, nChan, nTime)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        data = torch.randn(1, 1, nChan, nTime).to(device)
         out = model(data).shape
         return out[1:]
 
@@ -60,6 +61,7 @@ class ESNet(nn.Module):
 
     def __init__(self, num_channels, T, num_classes):
         super(ESNet, self).__init__()
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         self.dropout_level = 0.5
         self.F = [num_channels * 2] + [num_channels * 4]
         self.K = 10
@@ -70,14 +72,14 @@ class ESNet(nn.Module):
         net.append(self.enhanced_block(self.F[0], self.F[1], self.dropout_level,
                                            self.K, self.S)) # (30, 32, 1, 124)
 
-        self.conv_layers = nn.Sequential(*net)
+        self.conv_layers = nn.Sequential(*net).to(device)
 
         self.fcSize = self.calculateOutSize(self.conv_layers, num_channels, T) # (32, 1, 124)
         self.fcUnit = self.fcSize[0] * self.fcSize[1] * self.fcSize[2] * 2 # 7936
         self.D1 = self.fcUnit // 10 # 793
         self.D2 = self.D1 // 5 # 158
 
-        self.rnn = LSTM(input_size=self.F[1], hidden_size=self.F[1])
+        self.rnn = LSTM(input_size=self.F[1], hidden_size=self.F[1]).to(device)
 
         self.dense_layers = nn.Sequential(
             nn.Flatten(),
@@ -86,7 +88,7 @@ class ESNet(nn.Module):
             nn.Linear(self.D1, self.D2),
             nn.PReLU(),
             nn.Dropout(self.dropout_level),
-            nn.Linear(self.D2, num_classes))
+            nn.Linear(self.D2, num_classes)).to(device)
 
     def forward(self, x):
         # print(x.shape)

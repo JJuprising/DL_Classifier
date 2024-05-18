@@ -115,7 +115,8 @@ class DCDGCN(nn.Module):
     def __init__(self, num_nodes, xdim, K, num_out, dropout=0., bias=True, norm='batch', act='relu', trans_class='DCD',
                  device='cuda'):
         super(DCDGCN, self).__init__()
-        self.device = device
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # print("device: ", self.device)
         self.K = K
         self.gc = nn.ModuleList()
         self.norm, self.act = None, None
@@ -160,7 +161,7 @@ class DCDGCN(nn.Module):
 
 class DenseGCNNblock(nn.Module):
     def __init__(self, num_nodes, in_num_layers, out_num_layers, K, dropout, bias=True, norm='batch', act='relu',
-                 trans_class='DCD', device='cuda'):
+                 trans_class='DCD', device="cuda" if torch.cuda.is_available() else "cpu"):
         super(DenseGCNNblock, self).__init__()
         self.Block_seq = nn.ModuleList()
         self.Block_transfer = nn.ModuleList()

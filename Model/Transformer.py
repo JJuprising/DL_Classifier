@@ -149,7 +149,7 @@ class convTransformer(nn.Module):
         return x
 
 
-class iTransformer(Module):
+class Transformer(Module):
     # 空间滤波器模块，为每个通道分配不同的权重并融合它们
     def spatial_block(self, nChan, dropout_level):
         '''
@@ -183,6 +183,7 @@ class iTransformer(Module):
     '''
     def __init__(self, T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead=8, dim_fhead=8, dim=560):
         super().__init__()
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         # 时间序列的网络层
         self.attentionEncoder = ModuleList([])
         self.fc = nn.Linear(T, class_num)
@@ -196,7 +197,7 @@ class iTransformer(Module):
         net.append(self.enhanced_block(self.F[0], self.F[1], ff_dropout,
                                        self.K, self.S))  # (30, 32, 1, 124)
 
-        self.conv_layers = nn.Sequential(*net)
+        self.conv_layers = nn.Sequential(*net).to(device)
         for _ in range(depth):
             self.attentionEncoder.append(ModuleList([
                 # ECAAttention(kernel_size=3),
@@ -206,7 +207,7 @@ class iTransformer(Module):
                 nn.LayerNorm(chs_num),
                 FeedForward(chs_num, hidden_dim=dim_fhead, dropout=ff_dropout),
                 nn.LayerNorm(chs_num)
-            ]))
+            ]).to(device))
 
         self.mlp_head = nn.Sequential(
             nn.Flatten(),
@@ -216,11 +217,11 @@ class iTransformer(Module):
             nn.GELU(),
             nn.Dropout(0.5),
             nn.Linear(class_num * 6, class_num)
-        )
+        ).to(device)
 
 
         # 结果融合层
-        self.fusion_layer = nn.Conv1d(2, 1, kernel_size=1)
+        self.fusion_layer = nn.Conv1d(2, 1, kernel_size=1).to(device)
 
     # 有两个子网络，一个子网络处理时间序列，一个子网络处理频谱序列
     def forward(self, x):

@@ -1,4 +1,4 @@
-algorithm: TFformer4
+algorithm: Transformer
 classes: 12 # 哪个分类数据 12-Dial 40-tsinghua
 
 # Parameters for training procedure
@@ -60,9 +60,9 @@ ConvCA:
   lr_jitter: false             # learning rate scheduler
 
 SSVEPNet:
-  epochs: 500                  # number of epochs
-  bz: 30                     # batch size
-  lr: 0.01                       # learning rate
+  epochs: 20                  # number of epochs
+  bz: 50                     # batch size
+  lr: 0.001                       # learning rate
   wd: 0.0003                   # weight decay
   lr_jitter: true             # learning rate scheduler
   stimulus_type: 4            # 4-class or 12-class
@@ -119,18 +119,32 @@ TFformer2:
   lr_jitter: true             # learning rate scheduler
 
 TFformer3:
-  epochs: 20                  # number of epochs
-  bz: 60                     # batch size
-  lr: 0.002                       # learning rate
+  epochs: 40                  # number of epochs
+  bz: 50                     # batch size
+  lr: 0.001                       # learning rate
   wd: 0.001                   # weight decay
   lr_jitter: true             # learning rate scheduler
 
 TFformer4:
-  epochs: 20                  # number of epochs
-  bz: 60                     # batch size
-  lr: 0.002                       # learning rate
+  epochs: 40                  # number of epochs
+  bz: 50                     # batch size
+  lr: 0.001                       # learning rate
   wd: 0.001                   # weight decay
   lr_jitter: true             # learning rate scheduler
+
+Transformer:
+  epochs: 20                  # number of epochs
+  bz: 50                     # batch size
+  lr: 0.001                       # learning rate
+  wd: 0.0003                   # weight decay
+  lr_jitter: true             # learning rate scheduler
+
+#Mamba:
+#  epochs: 20                  # number of epochs
+#  bz: 50                     # batch size
+#  lr: 0.001                       # learning rate
+#  wd: 0.0003                   # weight decay
+#  lr_jitter: true             # learning rate scheduler
 
 TFFBformer:
   epochs: 80                  # number of epochs
@@ -146,12 +160,12 @@ iTransformer:
   wd: 0.001                   # weight decay
   lr_jitter: true             # learning rate scheduler
 
-ALSTM_FCN:
-  epochs: 40                  # number of epochs
-  bz: 30                     # batch size
-  lr: 0.001                       # learning rate
-  wd: 0.001                   # weight decay
-  lr_jitter: true             # learning rate scheduler
+#ALSTM_FCN:
+#  epochs: 40                  # number of epochs
+#  bz: 30                     # batch size
+#  lr: 0.001                       # learning rate
+#  wd: 0.001                   # weight decay
+#  lr_jitter: true             # learning rate scheduler
 
 TodyNet:
   epochs: 40                  # number of epochs

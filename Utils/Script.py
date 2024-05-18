@@ -120,7 +120,7 @@ def generate_cheby_adj(A, K,device='cuda'):
         elif i == 1:
             support.append(A.to(device))
         else:
-            temp = torch.matmul(support[-1].cuda(), A.to(device))
+            temp = torch.matmul(support[-1], A.to(device))
             support.append(temp.to(device))
     return support
 
