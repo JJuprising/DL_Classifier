@@ -76,9 +76,9 @@ def train_on_batch(subject, num_epochs, val_interval, train_iter, test_iter, opt
             net.train()
             sum_loss = 0.0
             sum_acc = 0.0
-            # progress_bar = tqdm(enumerate(train_iter), total=len(train_iter), desc=f'Epoch {epoch + 1}/{num_epochs}')
-            # for batch_idx, data in progress_bar:
-            for batch_idx, data in enumerate(train_iter): # 取消进度条
+            progress_bar = tqdm(enumerate(train_iter), total=len(train_iter), desc=f'Epoch {epoch + 1}/{num_epochs}')
+            for batch_idx, data in progress_bar:
+            # for batch_idx, data in enumerate(train_iter): # 取消进度条
                 if algorithm == "ConvCA":
                     X, temp, y = data
                     X = X.type(torch.FloatTensor).to(device)

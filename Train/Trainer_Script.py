@@ -46,7 +46,7 @@ def data_preprocess(EEGData_Train, EEGData_Test):
     '''Loading Training Data'''
 
     EEGData_Train, EEGLabel_Train = EEGData_Train[:]
-    EEGData_Train = EEGData_Train[:, :, :, int(Fs * last_time):int(Fs * ws + Fs * last_time)]
+    EEGData_Train = EEGData_Train[:, :, :, int(Fs * last_time):int(int(Fs * ws) + int(Fs * last_time))]
 
     if algorithm == "ConvCA":
         EEGData_Train = torch.swapaxes(EEGData_Train, axis0=2, axis1=3)  # (Nh, 1, Nt, Nc)
@@ -118,7 +118,7 @@ def data_preprocess(EEGData_Train, EEGData_Test):
 
     '''Loading Testing Data'''
     EEGData_Test, EEGLabel_Test = EEGData_Test[:]
-    EEGData_Test = EEGData_Test[:, :, :, int(Fs * last_time):int(Fs * ws + Fs * last_time)]
+    EEGData_Test = EEGData_Test[:, :, :, int(Fs * last_time):int(int(Fs * ws) + int(Fs * last_time))]
 
     if algorithm == "ConvCA":
         EEGData_Test = torch.swapaxes(EEGData_Test, axis0=2, axis1=3)  # (Nh, 1, Nt, Nc)
@@ -287,9 +287,9 @@ def build_model(devices):
                                       T=Nt)
         net = Constraint.Spectral_Normalization(net)
 
-    elif algorithm == "Mamba":
-        net = Mamba.SSVEPMamba(Nf, Nt)
-        net = Constraint.Spectral_Normalization(net)
+    # elif algorithm == "Mamba":
+    #     net = Mamba.SSVEPMamba(Nf, Nt)
+    #     net = Constraint.Spectral_Normalization(net)
 
     elif algorithm == "TFFBformer":
         net = TFFBformer.TFFBformer(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,

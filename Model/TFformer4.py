@@ -349,67 +349,67 @@ class TFformer4(nn.Module):
         for _ in range(2):
             self.crossAttentionEncoder2.append(crossAttentionEncoder(chs_num, chs_num * 2, 16, 16, 24, 32))
 
-        # self.mlp_head = nn.Sequential(
+        self.mlp_head = nn.Sequential(
+            nn.Flatten(),
+            nn.Dropout(self.dropout_level),
+            nn.Linear(560 * chs_num*2, class_num * 6),
+            nn.LayerNorm(class_num * 6),
+            nn.GELU(),
+            nn.Dropout(0.5),
+            nn.Linear(class_num * 6, class_num * 2)
+        )
+        self.mlp_head.to(device)
+
+        self.mlp_head2 = nn.Sequential(
+            nn.Flatten(),
+            nn.Dropout(self.dropout_level),
+            nn.Linear(T * chs_num, class_num * 2),
+            nn.LayerNorm(class_num * 2),
+            nn.GELU(),
+            nn.Dropout(0.5),
+            nn.Linear(class_num * 2, class_num * 2)
+        )
+        self.mlp_head2.to(device)
+
+        self.fusion_layer = nn.Sequential(
+            nn.Conv1d(2, 1, kernel_size=2, stride=2)
+        )
+        self.fusion_layer.to(device)
+
+        # 将频谱序列的时间步转换至与时间序列相同
+        # self.fft_clip = nn.Sequential(
+        #     nn.Linear(560, T),
+        #     nn.LayerNorm(T),
+        #     nn.GELU(),
+        #     nn.Dropout(0.5),
+        # ).to(device)
+        #
+        # self.tf_mlp_head = nn.Sequential(
         #     nn.Flatten(),
         #     nn.Dropout(self.dropout_level),
-        #     nn.Linear(560 * chs_num*2, class_num * 6),
+        #     nn.Linear(T * chs_num * 3, class_num * 6),
         #     nn.LayerNorm(class_num * 6),
         #     nn.GELU(),
         #     nn.Dropout(0.5),
-        #     nn.Linear(class_num * 6, class_num * 2)
-        # )
-        # self.mlp_head.to(device)
+        #     nn.Linear(class_num * 6, class_num)
+        # ).to(device)
         #
-        # self.mlp_head2 = nn.Sequential(
-        #     nn.Flatten(),
-        #     nn.Dropout(self.dropout_level),
-        #     nn.Linear(T * chs_num, class_num * 2),
-        #     nn.LayerNorm(class_num * 2),
+        # self.time_clip = nn.Sequential(
+        #     nn.Linear(T, 560),
+        #     nn.LayerNorm(560),
         #     nn.GELU(),
         #     nn.Dropout(0.5),
-        #     nn.Linear(class_num * 2, class_num * 2)
-        # )
-        # self.mlp_head2.to(device)
+        # ).to(device)
         #
-        # self.fusion_layer = nn.Sequential(
-        #     nn.Conv1d(2, 1, kernel_size=2, stride=2)
-        # )
-        # self.fusion_layer.to(device)
-
-        # 将频谱序列的时间步转换至与时间序列相同
-        self.fft_clip = nn.Sequential(
-            nn.Linear(560, T),
-            nn.LayerNorm(T),
-            nn.GELU(),
-            nn.Dropout(0.5),
-        ).to(device)
-
-        self.tf_mlp_head = nn.Sequential(
-            nn.Flatten(),
-            nn.Dropout(self.dropout_level),
-            nn.Linear(T * chs_num * 3, class_num * 6),
-            nn.LayerNorm(class_num * 6),
-            nn.GELU(),
-            nn.Dropout(0.5),
-            nn.Linear(class_num * 6, class_num)
-        ).to(device)
-
-        self.time_clip = nn.Sequential(
-            nn.Linear(T, 560),
-            nn.LayerNorm(560),
-            nn.GELU(),
-            nn.Dropout(0.5),
-        ).to(device)
-
-        self.tf_mlp_head2 = nn.Sequential(
-            nn.Flatten(),
-            nn.Dropout(self.dropout_level),
-            nn.Linear(560 * chs_num * 3, class_num * 6),
-            nn.LayerNorm(class_num * 6),
-            nn.GELU(),
-            nn.Dropout(0.5),
-            nn.Linear(class_num * 6, class_num)
-        ).to(device)
+        # self.tf_mlp_head2 = nn.Sequential(
+        #     nn.Flatten(),
+        #     nn.Dropout(self.dropout_level),
+        #     nn.Linear(560 * chs_num * 3, class_num * 6),
+        #     nn.LayerNorm(class_num * 6),
+        #     nn.GELU(),
+        #     nn.Dropout(0.5),
+        #     nn.Linear(class_num * 6, class_num)
+        # ).to(device)
 
         # 对x_fft进行裁剪后，与x_t进行时空卷积融合
         # 假定将x_fft(bz, c, t),裁剪为与x_t相同的维度
@@ -520,16 +520,16 @@ class TFformer4(nn.Module):
         x_t = self.crossAttentionEncoder2[1](x_t, x_fft_origin)
 
         # 对x_t和x_fft分别进行mlp后融合
-        # # mlp层
-        # x_fft = self.mlp_head(x_fft)  # (30, 12)
-        # x_t = self.mlp_head2(x_t) # (30, 12)
-        #
-        # # 将x_t和x_fft融合
-        # # 拼接x_t和x_fft为(30, 2, 12)
-        # output = torch.stack([x_t, x_fft], dim=1)
-        # # 结果的通道融合
-        # output = self.fusion_layer(output).squeeze(1)
-        # # output = self.fully_connected(output)
+        # mlp层
+        x_fft = self.mlp_head(x_fft)  # (30, 12)
+        x_t = self.mlp_head2(x_t) # (30, 12)
+
+        # 将x_t和x_fft融合
+        # 拼接x_t和x_fft为(30, 2, 12)
+        output = torch.stack([x_t, x_fft], dim=1)
+        # 结果的通道融合
+        output = self.fusion_layer(output).squeeze(1)
+        # output = self.fully_connected(output)
 
         # 将x_t和x_fft经过融合后再进行mlp,对x_fft进行维度裁剪
         # x_fft = rearrange(x_fft, 'b f c -> b c f')
@@ -539,11 +539,11 @@ class TFformer4(nn.Module):
         # output = self.tf_mlp_head(output)
 
         # 将x_t和x_fft经过融合后再进行mlp,对x_t进行维度裁剪
-        x_t = rearrange(x_t, 'b t c -> b c t')
-        x_t = self.time_clip(x_t)  # 将x_t的维度裁剪至与x_fft相同
-        x_fft = rearrange(x_fft, 'b f c -> b c f')
-        output = torch.cat([x_t, x_fft], dim=1)  # (30, 24, 125)
-        output = self.tf_mlp_head2(output)
+        # x_t = rearrange(x_t, 'b t c -> b c t')
+        # x_t = self.time_clip(x_t)  # 将x_t的维度裁剪至与x_fft相同
+        # x_fft = rearrange(x_fft, 'b f c -> b c f')
+        # output = torch.cat([x_t, x_fft], dim=1)  # (30, 24, 125)
+        # output = self.tf_mlp_head2(output)
 
         # x_t = rearrange(x_t, 'b t c -> b c t')
         # x_fft = rearrange(x_fft, 'b t c -> b c t')
