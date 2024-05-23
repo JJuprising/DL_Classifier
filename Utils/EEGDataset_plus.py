@@ -38,18 +38,7 @@ class getSSVEP12Inter(Dataset):
         self.label_raw_data = self.read_EEGLabel()
         self.eeg_data = self.eeg_raw_data
         self.label_data = self.label_raw_data
-        # if mode == 'train':
-        #     self.eeg_data = torch.cat(
-        #         (self.eeg_raw_data[0:(subject - 1) * self.Nh], self.eeg_raw_data[subject * self.Nh:]), dim=0)
-        #     self.label_data = torch.cat(
-        #         (self.label_raw_data[0:(subject - 1) * self.Nh:, :], self.label_raw_data[subject * self.Nh:, :]), dim=0)
-        #
-        # if mode == 'test':
-        #     self.eeg_data = self.eeg_raw_data[(subject - 1) * self.Nh:subject * self.Nh]
-        #     self.label_data = self.label_raw_data[(subject - 1) * self.Nh:subject * self.Nh]
-        #
-        # print(f'eeg_data for subject {subject}:', self.eeg_data.shape)
-        # print(f'label_data for subject {subject}:', self.label_data.shape)
+
 
     def __getitem__(self, index):
         return self.eeg_data[index], self.label_data[index]
@@ -59,20 +48,20 @@ class getSSVEP12Inter(Dataset):
 
     def get_subject_data(self, subject, mode='train'):
         if mode == 'train':
-            self.eeg_data = torch.cat(
+            eeg_data = torch.cat(
                 (self.eeg_raw_data[0:(subject - 1) * self.Nh], self.eeg_raw_data[subject * self.Nh:]), dim=0)
-            self.label_data = torch.cat(
+            label_data = torch.cat(
                 (self.label_raw_data[0:(subject - 1) * self.Nh:, :], self.label_raw_data[subject * self.Nh:, :]), dim=0)
 
         if mode == 'test':
-            self.eeg_data = self.eeg_raw_data[(subject - 1) * self.Nh:subject * self.Nh]
-            self.label_data = self.label_raw_data[(subject - 1) * self.Nh:subject * self.Nh]
+            eeg_data = self.eeg_raw_data[(subject - 1) * self.Nh:subject * self.Nh]
+            label_data = self.label_raw_data[(subject - 1) * self.Nh:subject * self.Nh]
 
-        print(f'eeg_data for subject {subject}:', self.eeg_data.shape)
-        print(f'label_data for subject {subject}:', self.label_data.shape)
+        # print(f'eeg_data for subject {subject}:', self.eeg_data.shape)
+        # print(f'label_data for subject {subject}:', self.label_data.shape)
         dataloader = dataLoader()
-        dataloader.eeg_data = self.eeg_data
-        dataloader.label_data = self.label_data
+        dataloader.eeg_data = eeg_data
+        dataloader.label_data = label_data
         return dataloader
 
     # get the single subject data
@@ -123,11 +112,14 @@ class getSSVEP12Intra(Dataset):
         self.Nf = 12  # number of target frequency
         self.Fs = 256  # Sample Frequency
         self.subject = subject  # current subject
-        self.eeg_data = self.get_DataSub()
-        self.label_data = self.get_DataLabel()
+        self.eeg_data = self.read_EEGData()
+        self.label_data = self.read_EEGLabel()
         self.num_trial = self.Nh // self.Nf  # number of trials of each frequency
         self.train_idx = []
         self.test_idx = []
+        self.n_splits = n_splits
+        self.KFold = KFold
+        self.train_ratio = train_ratio
         if KFold is not None:
             fold_trial = self.num_trial // n_splits  # number of trials in each fold
             self.valid_trial_idx = [i for i in range(KFold * fold_trial, (KFold + 1) * fold_trial)]
@@ -146,21 +138,21 @@ class getSSVEP12Intra(Dataset):
                         self.train_idx.append(i + j)
                     else:
                         self.test_idx.append(i + j)
-
-        self.eeg_data_train = self.eeg_data[self.train_idx]
-        self.label_data_train = self.label_data[self.train_idx]
-        self.eeg_data_test = self.eeg_data[self.test_idx]
-        self.label_data_test = self.label_data[self.test_idx]
-
-        if mode == 'train':
-            self.eeg_data = self.eeg_data_train
-            self.label_data = self.label_data_train
-        elif mode == 'test':
-            self.eeg_data = self.eeg_data_test
-            self.label_data = self.label_data_test
-
-        print(f'eeg_data for subject {subject}:', self.eeg_data.shape)
-        print(f'label_data for subject {subject}:', self.label_data.shape)
+        #
+        # self.eeg_data_train = self.eeg_data[self.train_idx]
+        # self.label_data_train = self.label_data[self.train_idx]
+        # self.eeg_data_test = self.eeg_data[self.test_idx]
+        # self.label_data_test = self.label_data[self.test_idx]
+        #
+        # if mode == 'train':
+        #     self.eeg_data = self.eeg_data_train
+        #     self.label_data = self.label_data_train
+        # elif mode == 'test':
+        #     self.eeg_data = self.eeg_data_test
+        #     self.label_data = self.label_data_test
+        #
+        # print(f'eeg_data for subject {subject}:', self.eeg_data.shape)
+        # print(f'label_data for subject {subject}:', self.label_data.shape)
 
     def __getitem__(self, index):
         return self.eeg_data[index], self.label_data[index]
@@ -168,11 +160,23 @@ class getSSVEP12Intra(Dataset):
     def __len__(self):
         return len(self.label_data)
 
-    # def get_subject_data(self, subject, mode='train'):
+    def get_subject_data(self, subject, mode='train'):
+
+        if mode == 'train':
+            eeg_data = self.eeg_data[subject][self.train_idx]
+            label_data = self.label_data[subject][self.train_idx]
+        elif mode == 'test':
+            eeg_data = self.eeg_data[subject][self.test_idx]
+            label_data = self.label_data[subject][self.test_idx]
+
+        dataloader = dataLoader()
+        dataloader.eeg_data = eeg_data
+        dataloader.label_data = label_data
+        return dataloader
 
     # get the single subject data
-    def get_DataSub(self):
-        subjectfile = scipy.io.loadmat(f'../data/Dial/DataSub_{self.subject}.mat')
+    def get_DataSub(self, index):
+        subjectfile = scipy.io.loadmat(f'../data/Dial/DataSub_{index}.mat')
         samples = subjectfile['Data']  # (8, 1024, 180)
         eeg_data = samples.swapaxes(1, 2)  # (8, 1024, 180) -> (8, 180, 1024)
         eeg_data = torch.from_numpy(eeg_data.swapaxes(0, 1))  # (8, 180, 1024) -> (180, 8, 1024)
@@ -181,13 +185,29 @@ class getSSVEP12Intra(Dataset):
         return eeg_data
 
     # get the single label data
-    def get_DataLabel(self):
-        labelfile = scipy.io.loadmat(f'../data/Dial/LabSub_{self.subject}.mat')
+    def get_DataLabel(self, index):
+        labelfile = scipy.io.loadmat(f'../data/Dial/LabSub_{index}.mat')
         labels = labelfile['Label']
         # print(labels)
         label_data = torch.from_numpy(labels)
         # print(label_data.shape)  # torch.Size([180, 1])
         return label_data - 1
+
+    def read_EEGData(self):
+        single_subject_eeg_data = self.get_DataSub(1)
+        eeg_data = [single_subject_eeg_data for _ in range(Ns)]
+        for i in range(1, Ns):
+            single_subject_eeg_data = self.get_DataSub(i + 1)
+            eeg_data[i] = single_subject_eeg_data
+        return eeg_data
+
+    def read_EEGLabel(self):
+        sigle_subject_label_data = self.get_DataLabel(1)
+        label_data = [sigle_subject_label_data for _ in range(Ns)]
+        for i in range(1, Ns):
+            single_subject_label_data = self.get_DataLabel(i)
+            label_data[i] = single_subject_label_data
+        return label_data
 
 
 # 清华跨被试数据处理
@@ -223,20 +243,20 @@ class getSSVEP40Inter(Dataset):
 
     def get_subject_data(self, subject, mode="train"):
         if mode == 'train':
-            self.eeg_data = torch.cat(
+            eeg_data = torch.cat(
                 (self.eeg_raw_data[0:(subject - 1) * self.Nh], self.eeg_raw_data[subject * self.Nh:]), dim=0)
-            self.label_data = torch.cat(
+            label_data = torch.cat(
                 (self.label_raw_data[0:(subject - 1) * self.Nh:, :], self.label_raw_data[subject * self.Nh:, :]), dim=0)
 
         if mode == 'test':
-            self.eeg_data = self.eeg_raw_data[(subject - 1) * self.Nh:subject * self.Nh]
-            self.label_data = self.label_raw_data[(subject - 1) * self.Nh:subject * self.Nh]
+            eeg_data = self.eeg_raw_data[(subject - 1) * self.Nh:subject * self.Nh]
+            label_data = self.label_raw_data[(subject - 1) * self.Nh:subject * self.Nh]
 
-        print(f'eeg_data for subject {subject}:', self.eeg_data.shape)
-        print(f'label_data for subject {subject}:', self.label_data.shape)
+        # print(f'eeg_data for subject {subject}:', self.eeg_data.shape)
+        # print(f'label_data for subject {subject}:', self.label_data.shape)
         dataloader = dataLoader()
-        dataloader.eeg_data = self.eeg_data
-        dataloader.label_data = self.label_data
+        dataloader.eeg_data = eeg_data
+        dataloader.label_data = label_data
         return dataloader
     def get_DataSub(self,index):
         # subjectfile = scipy.io.loadmat(f'../data/tsinghua/S{index}.mat')
@@ -289,11 +309,14 @@ class getSSVEP40Intra(Dataset):
         self.Nf = 40  # number of target frequency
         self.Fs = 250  # Sample Frequency
         self.subject = subject  # current subject
-        self.eeg_data = self.get_DataSub()
-        self.label_data = self.get_DataLabel()
+        self.eeg_data = self.read_EEGData()
+        self.label_data = self.read_EEGLabel()
         self.num_trial = self.Nh // self.Nf  # number of trials of each frequency
         self.train_idx = []
         self.test_idx = []
+        self.n_splits = n_splits
+        self.KFold = KFold
+        self.train_ratio = train_ratio
         if KFold is not None:
             fold_trial = self.num_trial // n_splits  # number of trials in each fold
             self.valid_trial_idx = [i for i in range(KFold * fold_trial, (KFold + 1) * fold_trial)]
@@ -312,21 +335,21 @@ class getSSVEP40Intra(Dataset):
                         self.train_idx.append(i + j)
                     else:
                         self.test_idx.append(i + j)
-
-        self.eeg_data_train = self.eeg_data[self.train_idx]
-        self.label_data_train = self.label_data[self.train_idx]
-        self.eeg_data_test = self.eeg_data[self.test_idx]
-        self.label_data_test = self.label_data[self.test_idx]
-        print(self.label_data)
-        if mode == 'train':
-            self.eeg_data = self.eeg_data_train
-            self.label_data = self.label_data_train
-        elif mode == 'test':
-            self.eeg_data = self.eeg_data_test
-            self.label_data = self.label_data_test
-
-        print(f'eeg_data for subject {subject}:', self.eeg_data.shape)
-        print(f'label_data for subject {subject}:', self.label_data.shape)
+        #
+        # self.eeg_data_train = self.eeg_data[self.train_idx]
+        # self.label_data_train = self.label_data[self.train_idx]
+        # self.eeg_data_test = self.eeg_data[self.test_idx]
+        # self.label_data_test = self.label_data[self.test_idx]
+        # print(self.label_data)
+        # if mode == 'train':
+        #     self.eeg_data = self.eeg_data_train
+        #     self.label_data = self.label_data_train
+        # elif mode == 'test':
+        #     self.eeg_data = self.eeg_data_test
+        #     self.label_data = self.label_data_test
+        #
+        # print(f'eeg_data for subject {subject}:', self.eeg_data.shape)
+        # print(f'label_data for subject {subject}:', self.label_data.shape)
 
 
     def __getitem__(self, index):
@@ -334,7 +357,24 @@ class getSSVEP40Intra(Dataset):
 
     def __len__(self):
         return len(self.label_data)
+    def get_subject_data(self, subject, mode='train'):
 
+        eeg_data_train = self.eeg_data[subject][self.train_idx]
+        label_data_train = self.label_data[subject][self.train_idx]
+        eeg_data_test = self.eeg_data[subject][self.test_idx]
+        label_data_test = self.label_data[subject][self.test_idx]
+        # print(self.label_data)
+        if mode == 'train':
+            eeg_data = eeg_data_train
+            label_data = label_data_train
+        elif mode == 'test':
+            eeg_data = eeg_data_test
+            label_data = label_data_test
+
+        dataloader = dataLoader()
+        dataloader.eeg_data = eeg_data
+        dataloader.label_data = label_data
+        return dataloader
     def SSVEPFilter(self, eegData,filterType=0):
         """
         type
@@ -354,11 +394,11 @@ class getSSVEP40Intra(Dataset):
             del b, a, Wn
         elif filterType == 1:
             sys.exit("Error:<filterType=1 means use Enhance trca by adding filter bank, to which Leo was lazy!!!>")
-        print("eegFiltered's shape ", dataFiltered.shape)
+        # print("eegFiltered's shape ", dataFiltered.shape)
         # del data, dataFiltered
         return dataFiltered
     # get the single subject data
-    def get_DataSub(self):
+    def get_DataSub(self, index):
         # subjectfile = scipy.io.loadmat(f'../data/tsinghua/S{self.subject}.mat')
         # print(samples.shape)
         # samples = subjectfile['data']  # (64, 1500, 40, 6)
@@ -367,7 +407,7 @@ class getSSVEP40Intra(Dataset):
         # chnls = [48, 54, 55, 56, 57, 58, 61, 62, 63]
         # samples = samples[chnls, :, :, :]
 
-        samples = np.load(f'../data/tsinghua/S{self.subject}.npy')
+        samples = np.load(f'../data/tsinghua/S{index}.npy')
         # 滤波
         samples=self.SSVEPFilter(eegData=samples)
         # print(f'subject {self.subject} data shape: {samples.shape}')
@@ -377,12 +417,29 @@ class getSSVEP40Intra(Dataset):
         eeg_data = np.vstack(data_stack)  # (240,64,1500)
         eeg_data = eeg_data.reshape(-1, 1, self.Nc, self.Nt)  # (240, 1, 64, 1500) # 这个第二维度什么作用？
         eeg_data = torch.from_numpy(eeg_data)
-        print(eeg_data.shape)  # (trails, 1, channels, times)
+        # print(eeg_data.shape)  # (trails, 1, channels, times)
         return eeg_data
 
     # get the single label data
     def get_DataLabel(self):
         label_array = [[i] for i in np.tile(np.arange(self.Nf), 6)]  # 从 0 到 39 个trails循环 6 个block，每个元素是单个数组
         label_data = torch.tensor(label_array)
-        print(label_data.shape)
+        # print(label_data.shape)
         return label_data  # 不需要和12分类一样-1，这里已经是从0开始了
+
+    def read_EEGData(self):
+        single_subject_eeg_data = self.get_DataSub(1)
+        eeg_data = [single_subject_eeg_data for _ in range(Ns)]
+        for i in range(1, Ns):
+            single_subject_eeg_data = self.get_DataSub(i + 1)
+            eeg_data[i] = single_subject_eeg_data
+        return eeg_data
+
+
+    def read_EEGLabel(self):
+        signal_subject_label_data = self.get_DataLabel()
+        label_data = [signal_subject_label_data for _ in range(Ns)]
+        for i in range(0, Ns-1):
+            single_subject_label_data = self.get_DataLabel()
+            label_data[i + 1] = single_subject_label_data
+        return label_data

@@ -1,10 +1,10 @@
-algorithm: TFformer3
+algorithm: SSVEPformer # 选择算法
 classes: 12 # 哪个分类数据 12-Dial 40-tsinghua
 
 # Parameters for training procedure
 train_param:
-  UD: 1               # -1——Unsupervised, 0——User-Dependent；1——User-Independent
-  ratio: 0             # -1——Training-Free, 1——80% vs 20%;2——50% vs 50%;3——20% vs 80%(UD Approach)
+  UD: 0               # -1——Unsupervised, 0——User-Dependent；1——User-Independent
+  ratio: 1             # -1——Training-Free, 1——80% vs 20%;2——50% vs 50%;3——20% vs 80%(UD Approach)
                          # 0 or else——(N-1)/N vs 1/N(UI Approach)
 
 # Parameters for ssvep data
@@ -17,7 +17,7 @@ data_param_12:
   Ns: 10                       # number of subjects
 
 data_param_40:
-  ws: 1.0                      # window size of ssvep
+  ws: 0.5                      # window size of ssvep
   Nh: 240                      # number of trial
   Nc: 9                        # number of channel
   Fs: 250                      # frequency of sample
@@ -68,8 +68,8 @@ SSVEPNet:
   stimulus_type: 4            # 4-class or 12-class
 
 SSVEPformer:
-  epochs: 40                  # number of epochs
-  bz: 30                     # batch size
+  epochs: 2                  # number of epochs
+  bz: 10                     # batch size
   lr: 0.001                       # learning rate
   wd: 0.001                   # weight decay
   lr_jitter: false             # learning rate scheduler
@@ -98,6 +98,7 @@ KANformer:
   lr_jitter: true             # learning rate scheduler
 
 FBSSVEPformer:
+  subnet_epochs: 40           # 训练子网络的epoch数
   epochs: 20                  # number of epochs
   bz: 120                     # batch size
   lr: 0.001                       # learning rate
@@ -121,6 +122,14 @@ TFformer2:
 TFformer3:
   epochs: 40                  # number of epochs
   bz: 50                     # batch size
+  lr: 0.001                       # learning rate
+  wd: 0.001                   # weight decay
+  lr_jitter: true             # learning rate scheduler
+
+FBTFformer3:
+  subnet_epochs: 2           # 训练子网络的epoch数
+  epochs: 2                  # number of epochs
+  bz: 10                     # batch size
   lr: 0.001                       # learning rate
   wd: 0.001                   # weight decay
   lr_jitter: true             # learning rate scheduler

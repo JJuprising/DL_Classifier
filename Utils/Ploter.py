@@ -110,5 +110,5 @@ def plot_save_Result(final_acc_list, model_name, dataset='Benchmark', UD=0, rati
                plt.text(a[i] - delta * 6.0, data1[i] + delta * 0.1,
                         f'{final_mean_list[-1] * 100:.2f}±{final_var_list[-1] * 100:.2f}', color='r')
     current = str(time.time())
-    plt.savefig(f'../Result/{dataset}/{model_name}/{proportion}_{val_way}_Classification_Result({win_size}S_date{time.strftime("%m-%d %H:%M:%S", time.localtime())}).png')
-    plt.show()
+    plt.savefig(f'../Result/{dataset}/{model_name}/{proportion}_{val_way}_Classification_Result({win_size}S)_Date({time.strftime("%m-%d %H-%M-%S", time.localtime())}).png')
+    # plt.show()

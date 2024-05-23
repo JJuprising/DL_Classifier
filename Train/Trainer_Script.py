@@ -6,7 +6,7 @@ import torch
 from torch import nn
 
 from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CAIFormer, FBSSVEPformer, \
-    TFformer2, TFformer3, ALSTM_FCN, TFformer4, Transformer
+    TFformer2, TFformer3, ALSTM_FCN, TFformer4, Transformer, FBTFformer3
 
 from Model import EEGNet, CCNN, SSVEPNet, FBtCNN, ConvCA, SSVEPformer, DDGCNN, CNNBIGRU, CNNAttentionGRU, \
     CNNAttentionMLP, CACAM, CACAMNew, PSDCNN, CAIFormerNew, TFformer, iTransformer, KANformer, TFFBformer, SSVEPformer2, \
@@ -92,7 +92,7 @@ def data_preprocess(EEGData_Train, EEGData_Test):
             for i in range(3):
                 lowcut = i * 8 + 2  # 根据数据集 1 的特性设置截止频率
                 highcut = 80
-                filtered_data = FBSSVEPformer.butter_bandpass_filter(EEGData_Train, lowcut, highcut, 256)
+                filtered_data = FBSSVEPformer.butter_bandpass_filter(EEGData_Train, lowcut, highcut, Fs)
                 filtered_data = FBSSVEPformer.complex_spectrum_features(filtered_data,
                                                                         FFT_PARAMS=[Fs, ws])  # 数据维度：(36, 1, 8, 560)
                 filtered_data = torch.from_numpy(filtered_data)
@@ -100,6 +100,23 @@ def data_preprocess(EEGData_Train, EEGData_Test):
             # 需要转换维度为(36, 8, 3, 256)
             EEGData_Train = torch.stack(subband_data, dim=3)
             EEGData_Train = EEGData_Train.squeeze(1)
+
+        elif algorithm == "FBTFformer3":
+            subband_data = []
+            for i in range(3):
+                if classes == 12:
+                    lowcut = i * 8 + 2
+                    highcut = 80
+                elif classes == 40:
+                    lowcut = i * 9 + 2
+                    highcut = 80
+                filtered_data = FBTFformer3.butter_bandpass_filter(EEGData_Train, lowcut, highcut, Fs)
+                filtered_data = torch.from_numpy(filtered_data)
+                subband_data.append(filtered_data)
+            EEGData_Train = torch.stack(subband_data, dim=3)
+            EEGData_Train = EEGData_Train.squeeze(1)
+
+
 
         elif algorithm == "DDGCNN":
             EEGData_Train = torch.swapaxes(EEGData_Train, axis0=1, axis1=3)  # (Nh, 1, Nc, Nt) => (Nh, Nt, Nc, 1)
@@ -161,8 +178,23 @@ def data_preprocess(EEGData_Train, EEGData_Test):
             for i in range(3):
                 lowcut = i * 8 + 2  # 根据数据集 1 的特性设置截止频率
                 highcut = 80
-                filtered_data = FBSSVEPformer.butter_bandpass_filter(EEGData_Test, lowcut, highcut, 256)
+                filtered_data = FBSSVEPformer.butter_bandpass_filter(EEGData_Test, lowcut, highcut, Fs)
                 filtered_data = FBSSVEPformer.complex_spectrum_features(filtered_data, FFT_PARAMS=[Fs, ws])
+                filtered_data = torch.from_numpy(filtered_data)
+                subband_data.append(filtered_data)
+            EEGData_Test = torch.stack(subband_data, dim=3)
+            EEGData_Test = EEGData_Test.squeeze(1)
+
+        elif algorithm == "FBTFformer3":
+            subband_data = []
+            for i in range(3):
+                if classes == 12:
+                    lowcut = i * 8 + 2
+                    highcut = 80
+                elif classes == 40:
+                    lowcut = i * 9 + 2
+                    highcut = 80
+                filtered_data = FBTFformer3.butter_bandpass_filter(EEGData_Test, lowcut, highcut, Fs)
                 filtered_data = torch.from_numpy(filtered_data)
                 subband_data.append(filtered_data)
             EEGData_Test = torch.stack(subband_data, dim=3)
@@ -277,6 +309,11 @@ def build_model(devices):
                                   T=Nt)
         net = Constraint.Spectral_Normalization(net)
 
+    elif algorithm == "FBTFformer3":
+        net = FBTFformer3.FBTFformer3(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,
+                                  T=Nt, num_subbands=3)
+        net = Constraint.Spectral_Normalization(net)
+
     elif algorithm == "TFformer4":
         net = TFformer4.TFformer4(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,
                                   T=Nt)
@@ -295,6 +332,8 @@ def build_model(devices):
         net = TFFBformer.TFFBformer(depth=2, heads=8, chs_num=Nc, class_num=Nf, tt_dropout=0.3, ff_dropout=0.5,
                                     T=Nt)
         net = Constraint.Spectral_Normalization(net)
+
+
 
     elif algorithm == "ALSTM_FCN":
         net = ALSTM_FCN.ALSTM_FCN(Nf, Nc, Nt)

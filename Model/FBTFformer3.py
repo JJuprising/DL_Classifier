@@ -10,12 +10,20 @@ from einops.layers.torch import Rearrange
 from fightingcv_attention.attention.ECAAttention import ECAAttention
 
 from torch.nn import init
-
+from scipy import signal
 from etc.global_config import config
 import torch.nn.functional as F
 devices = "cuda" if torch.cuda.is_available() else "cpu"
 ws = config["data_param_12"]["ws"]
 Fs = config["data_param_12"]["Fs"]
+
+def butter_bandpass_filter(data, lowcut, highcut, fs, order=4):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    b, a = signal.butter(order, [low, high], btype='band')
+    y = signal.lfilter(b, a, data)
+    return y
 # 自注意力
 from Utils import Constraint
 # 绝对位置编码
@@ -72,7 +80,7 @@ class Attention(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads),
                       qkv)  # q:(30, 8, 16, 8) (batch_size, channels, heads * dim_head)
 
-        # 矩阵乘法
+        # 点乘操作
         dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale  # dots:(30, 8, 16, 16)
 
         attn = self.attend(dots)  # attn:(30, 8, 16, 16)
@@ -146,8 +154,8 @@ def complex_spectrum_features(segmented_data, FFT_PARAMS):
 
     # 进行 FFT
     fft_result = np.fft.fft(segmented_data_np, axis=-1, n=NFFT) / (sample_point / 2)
-    real_part = np.real(fft_result[:, :, :, fft_index_start:fft_index_end - 1])
-    imag_part = np.imag(fft_result[:, :, :, fft_index_start:fft_index_end - 1])
+    real_part = np.real(fft_result[:, :, fft_index_start:fft_index_end - 1])
+    imag_part = np.imag(fft_result[:, :, fft_index_start:fft_index_end - 1])
     features_data = np.concatenate([real_part, imag_part], axis=-1)
     return features_data
 
@@ -189,7 +197,6 @@ class PreNorm(nn.Module):
 
     def forward(self, x, **kwargs):
         return self.fn(self.norm(x), **kwargs)
-
 
 class convTransformer(nn.Module):
     def __init__(self, depth, token_num, token_length, kernal_length, dropout):
@@ -251,19 +258,7 @@ class SSVEPformer(nn.Module):
             nn.GELU(),
             nn.Dropout(dropout)
         )
-
         self.transformer = convTransformer(depth, token_num, token_dim, attention_kernal_length, dropout)
-
-        # self.mlp_head = nn.Sequential(
-        #     nn.Flatten(),
-        #     nn.Dropout(dropout),
-        #     nn.Linear(token_dim * token_num, out_dim[0]),
-        #     nn.LayerNorm(out_dim[0]),
-        #     nn.GELU(),
-        #     nn.Dropout(0.5),
-        #     nn.Linear(out_dim[0], out_dim[1])
-        # )
-
         for m in self.modules():
             if isinstance(m, (nn.Conv1d, nn.Linear)):
                 nn.init.normal_(m.weight, mean=0.0, std=0.01)
@@ -273,35 +268,9 @@ class SSVEPformer(nn.Module):
         x = x.float()
         x = self.to_patch_embedding(x)
         x = self.transformer(x)
-        # return self.mlp_head(x)
         return x
 
 class TFformer3(Module):
-    def spatial_block(self, nChan, dropout_level):
-        '''
-           Spatial filter block,assign different weight to different channels and fuse them
-        '''
-        block = []
-        block.append(Constraint.Conv2dWithConstraint(in_channels=1, out_channels=nChan * 2, kernel_size=(nChan, 1),
-                                                     max_norm=1.0))
-        block.append(nn.BatchNorm2d(num_features=nChan * 2))
-        block.append(nn.PReLU())
-        block.append(nn.Dropout(dropout_level))
-        layer = nn.Sequential(*block)
-        return layer
-
-    def enhanced_block(self, in_channels, out_channels, dropout_level, kernel_size, stride):
-        '''
-           Enhanced structure block,build a CNN block to absorb data and output its stable feature
-        '''
-        block = []
-        block.append(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=(1, kernel_size),
-                               stride=(1, stride)))
-        block.append(nn.BatchNorm2d(num_features=out_channels))
-        block.append(nn.PReLU())
-        block.append(nn.Dropout(dropout_level))
-        layer = nn.Sequential(*block)
-        return layer
     '''
     T: 时间序列长度
     '''
@@ -342,15 +311,6 @@ class TFformer3(Module):
                                       dropout=ff_dropout)
         self.subnetwork.to(device)
 
-        # 结果融合层
-        # self.fusion_layer = nn.Conv1d(2, 1, kernel_size=1)
-
-        # 全连接层融合
-        # self.fully_connected = nn.Sequential(
-        #     nn.Linear(self.out_dim[1] + class_num, class_num),
-        #     nn.LayerNorm(class_num),
-        #     nn.GELU()
-        # ).to(device)
 
         # 交叉注意力机制
         self.crossAttentionEncoder = ModuleList([])
@@ -372,23 +332,11 @@ class TFformer3(Module):
             nn.Linear(class_num * 6, class_num)
         ).to(device)
 
-        # 对消融实验使用下面的代码
-        self.no_crossAttention_mlp = nn.Sequential(
-            nn.Flatten(),
-            nn.Dropout(self.dropout_level),
-            nn.Linear(560 * chs_num*2 + T * time_channel, class_num * 6),
-            nn.LayerNorm(class_num * 6),
-            nn.GELU(),
-            nn.Dropout(0.5),
-            nn.Linear(class_num * 6, class_num)
-        ).to(device)
-        self.flatten = nn.Flatten()
-
     # 有两个子网络，一个子网络处理时间序列，一个子网络处理频谱序列
     def forward(self, x):
         # 处理时间序列
         x_t = x
-        x_t = x_t.squeeze(1)
+        x_t = x_t
         # print("T shape:", self.T)
         # print("x_t shape:", x_t.shape)
         x_t = self.channels_combination(x_t)
@@ -408,12 +356,12 @@ class TFformer3(Module):
         x_fft = complex_spectrum_features(x, FFT_PARAMS=[Fs, ws])  # x:(30,1,8,256) x_fft:(30, 1, 8, 560)
 
         # device = torch.device("cuda:0")
-        x_fft = torch.tensor(x_fft.squeeze(1), dtype=torch.float)
+        x_fft = torch.tensor(x_fft, dtype=torch.float)
         x_fft = x_fft.to(devices)
         x_fft = self.subnetwork(x_fft)  # (30, T // 8)
         x_fft = rearrange(x_fft, 'b c f -> b f c') # (30, 560, 16)
 
-        # 融合两个子网络的结果(如果对消融实验，注释掉这段代码)
+        # 融合两个子网络的结果
         output = x_fft
         # print("x_t shape:", x_t.shape)
         # print("x_fft shape:", x_fft.shape)
@@ -424,11 +372,29 @@ class TFformer3(Module):
             output = ff_post_norm(output)
 
         output = self.mlp_head(output)
-
-        # 注释掉crossAttention和mlp_head后启用下面这段代码
-        # x_t = self.flatten(x_t)
-        # x_fft = self.flatten(x_fft)
-        # output = torch.cat((x_t, x_fft), dim=1)
-        # output = self.no_crossAttention_mlp(output)
-
         return output
+
+class FBTFformer3(Module):
+    def __init__(self, T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead=8, dim_fhead=8, dim=220, num_subbands = 3):
+        super().__init__()
+        self.num_subbands = num_subbands
+        # 创建多个 TFformer3 子网络
+        self.subnetworks = nn.ModuleList([
+            TFformer3(T, depth, heads, chs_num, class_num, tt_dropout, ff_dropout, dim_thead, dim_fhead, dim)
+            for _ in range(num_subbands)
+        ])
+        # 结果融合层
+        self.fusion_layer = nn.Conv1d(3, 1, kernel_size=1)
+
+    def forward(self, x):
+        # 每个子网络处理对应的子带数据
+        subband_outputs = [
+            subnetwork(x[:, :, i, :])
+            for i, subnetwork in enumerate(self.subnetworks)
+        ]
+
+        # 将子网络输出进行融合
+        outputs = torch.stack(subband_outputs, dim=2)  # (30, 12, 3)
+        outputs = torch.transpose(outputs, 1, 2)  # (30, 3, 12)
+        fused_output = self.fusion_layer(outputs)  # (30, 1, 12)
+        return fused_output.squeeze(dim=1)
